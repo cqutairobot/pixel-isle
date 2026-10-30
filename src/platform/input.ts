@@ -18,14 +18,21 @@ const KEYMAP: Record<string, number> = {
   KeyX: BTN.attack,
   KeyL: BTN.special,
   KeyC: BTN.special,
+  // 界面
+  Enter: BTN.start | BTN.confirm,
+  NumpadEnter: BTN.start | BTN.confirm,
+  Escape: BTN.start | BTN.cancel,
+  KeyP: BTN.start,
+  Backspace: BTN.cancel,
 };
 
 /** 标准手柄映射：A 跳、X（或 B）攻击、Y 切换，十字键与左摇杆移动 */
 const PAD_BUTTONS: Array<[number, number]> = [
-  [0, BTN.jump],
-  [1, BTN.attack],
+  [0, BTN.jump | BTN.confirm],
+  [1, BTN.attack | BTN.cancel],
   [2, BTN.attack],
   [3, BTN.special],
+  [9, BTN.start],
   [12, BTN.up],
   [13, BTN.down],
   [14, BTN.left],
@@ -37,13 +44,18 @@ const STICK_DIGITAL = 0.5;
 /**
  * 把键盘和手柄合成每个逻辑步的输入帧。
  * 两步之间按下又松开的键也会记成"本步按下"，不会丢。
+ * 逻辑步（sample）和界面（sampleUI）各有一份"按下"记录，互不抢键。
  */
 export class InputDevices {
   private keysHeld = 0;
   private pressedAcc = 0;
   private releasedAcc = 0;
   private padHeld = 0;
+  private uiPressedAcc = 0;
+  private uiPadHeld = 0;
   lastDevice: 'keyboard' | 'gamepad' = 'keyboard';
+  /** 最近按过的方向键是方向键这套（←→）还是 WASD 这套，按键提示据此显示 */
+  arrows = false;
 
   constructor(private target: Window = window) {
     target.addEventListener('keydown', this.onDown);
@@ -62,8 +74,13 @@ export class InputDevices {
     if (!b) return;
     e.preventDefault();
     this.lastDevice = 'keyboard';
+    if (e.code.startsWith('Arrow')) this.arrows = true;
+    else if (/^Key[WASDJKL]$/.test(e.code)) this.arrows = false;
     if (e.repeat) return;
-    if (!(this.keysHeld & b)) this.pressedAcc |= b;
+    if (!(this.keysHeld & b)) {
+      this.pressedAcc |= b;
+      this.uiPressedAcc |= b;
+    }
     this.keysHeld |= b;
   };
 
@@ -80,6 +97,7 @@ export class InputDevices {
     this.releasedAcc |= this.keysHeld | this.padHeld;
     this.keysHeld = 0;
     this.padHeld = 0;
+    this.uiPadHeld = 0;
   };
 
   private pollPad(): number {
@@ -116,6 +134,23 @@ export class InputDevices {
     this.pressedAcc = 0;
     this.releasedAcc = 0;
     return frame;
+  }
+
+  /** 每个渲染帧调用一次，给菜单、对话框用 */
+  sampleUI(): { held: number; pressed: number } {
+    const pad = this.pollPad();
+    if (pad && pad !== this.uiPadHeld) this.lastDevice = 'gamepad';
+    const pressed = this.uiPressedAcc | (pad & ~this.uiPadHeld);
+    this.uiPadHeld = pad;
+    this.uiPressedAcc = 0;
+    return { held: this.keysHeld | pad, pressed };
+  }
+
+  /** 丢掉还没处理的"按下"（切换界面时用，避免一次按键被两个界面各处理一次） */
+  flush(): void {
+    this.pressedAcc = 0;
+    this.uiPressedAcc = 0;
+    this.releasedAcc = 0;
   }
 
   /** 手柄的 Start 键是否按着（暂停用） */

@@ -32,6 +32,12 @@ export class HeroView {
   private lastFacing = 1;
   private flicker = 0;
   private frame = 'idle_0';
+  /** 白闪剩余时间（受击） */
+  private flashTime = 0;
+  /** 关卡场景指定的帧（受击、倒地、胜利、过场姿势）；null 按状态自动选 */
+  override: string | null = null;
+  /** 减少闪烁：受击时不白闪 */
+  reduceFlash = false;
   /** 跑步动画里脚着地的那一帧回调（播放脚步声、扬尘） */
   onFootstep?: (x: number, y: number, ratio: number) => void;
 
@@ -71,6 +77,17 @@ export class HeroView {
         this.sx.set(0.6);
         this.sy.set(1.4);
         break;
+      case 'stomp':
+        this.sx.set(1.25);
+        this.sy.set(0.78);
+        break;
+      case 'hurt':
+        if (e.dir !== 0) {
+          this.flashTime = 0.1;
+          this.sx.set(0.8);
+          this.sy.set(1.2);
+        }
+        break;
     }
   }
 
@@ -80,9 +97,17 @@ export class HeroView {
       if (p.onGround) this.sx.set(0.72);
       this.lastFacing = p.facing;
     }
-    this.frame = this.pickFrame(dt, p, t, x, y);
+    this.frame = this.override ?? this.pickFrame(dt, p, t, x, y);
     const s = this.sprite;
     s.setFrame(`hero/${this.frame}`);
+    if (this.flashTime > 0 && !this.reduceFlash) {
+      this.flashTime -= dt;
+      // 1 = TintModes.FILL：整个精灵填成白色
+      s.setTint(0xffffff).setTintMode(1);
+    } else {
+      this.flashTime = 0;
+      s.clearTint().setTintMode(0);
+    }
     s.setFlipX(p.facing < 0);
     const scaleX = this.sx.update(dt);
     const scaleY = this.sy.update(dt);

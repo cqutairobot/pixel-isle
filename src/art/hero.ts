@@ -52,6 +52,22 @@ const HEAD_BLINK = grid(`
   ...onnssesepso..
   ...onSssssso....
 `);
+// 受伤 / 打哈欠：紧闭的眼睛 + 张开的嘴
+const HEAD_OUCH = grid(`
+  .ooonnnnnnnnooo.
+  ...onnnnnnnnso..
+  ...onnnsssssso..
+  ...onnssesepso..
+  ...onSssessso...
+`);
+// 开心：眯成弯弯的眼睛 + 微笑
+const HEAD_HAPPY = grid(`
+  .ooonnnnnnnnooo.
+  ...onnnnnnnnso..
+  ...onnnsesesso..
+  ...onnssssspso..
+  ...onSsseeso....
+`);
 const HEAD_UP = grid(`
   .ooonnnnnnnnooo.
   ...onnnnnnnseso.
@@ -198,6 +214,15 @@ export const heroSheet: Sheet = {
     skid: () => frame({ legs: LEGS_SKID, torso: TORSO_SWING_B, skirt: SKIRT_FLARE }),
     crouch: () => frame({ legs: LEGS_TUCK, dy: 3 }),
     look_up: () => frame({ head: HEAD_UP }),
+    // 第 1 关新增：受击、倒地（死亡时的抛物线）、胜利、伸懒腰
+    hurt: () =>
+      frame({ head: HEAD_OUCH, torso: TORSO_OUT, legs: LEGS_FALL, skirt: SKIRT_FLARE, hatDy: -1 }),
+    ko: () =>
+      frame({ head: HEAD_OUCH, torso: TORSO_UP, legs: LEGS_FALL, skirt: SKIRT_FLARE, hatDy: -1 }),
+    victory_0: () => frame({ head: HEAD_HAPPY, torso: TORSO_UP }),
+    victory_1: () => frame({ head: HEAD_HAPPY, torso: TORSO_UP, legs: LEGS_TUCK, hatDy: -1 }),
+    stretch_0: () => frame({ head: HEAD_OUCH, torso: TORSO_UP, dy: 0, hatDy: -1 }),
+    stretch_1: () => frame({ head: HEAD_BLINK, torso: TORSO_UP, dy: 1 }),
   }),
 };
 

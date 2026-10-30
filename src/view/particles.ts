@@ -15,9 +15,14 @@ export interface ParticleSpec {
   /** 按寿命依次播放的帧（例如大→中→小，像素风的"缩小消失"） */
   frames: string[];
   flipX?: boolean;
+  /** 按固定帧率循环播放帧（例如旋转的碎片）；不写就按寿命播放一遍 */
+  fps?: number;
+  /** 最后 40% 寿命里淡出 */
+  fade?: boolean;
+  depth?: number;
 }
 
-interface Particle extends Required<Omit<ParticleSpec, 'flipX'>> {
+interface Particle extends Required<Omit<ParticleSpec, 'flipX' | 'depth'>> {
   img: Phaser.GameObjects.Image;
   age: number;
   alive: boolean;
@@ -50,6 +55,8 @@ export class Particles {
         drag: 0,
         life: 1,
         frames: [],
+        fps: 0,
+        fade: false,
         age: 0,
         alive: false,
       };
@@ -63,10 +70,14 @@ export class Particles {
     p.drag = spec.drag ?? 0;
     p.life = spec.life;
     p.frames = spec.frames;
+    p.fps = spec.fps ?? 0;
+    p.fade = spec.fade ?? false;
     p.age = 0;
     p.alive = true;
     p.img
       .setVisible(true)
+      .setAlpha(1)
+      .setDepth(spec.depth ?? 20)
       .setFrame(spec.frames[0]!)
       .setFlipX(spec.flipX ?? false);
   }
@@ -85,8 +96,11 @@ export class Particles {
       p.vy = p.vy * k + p.gravity * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      const idx = Math.min(p.frames.length - 1, Math.floor((p.age / p.life) * p.frames.length));
+      const idx = p.fps
+        ? Math.floor(p.age * p.fps) % p.frames.length
+        : Math.min(p.frames.length - 1, Math.floor((p.age / p.life) * p.frames.length));
       p.img.setFrame(p.frames[idx]!);
+      if (p.fade) p.img.setAlpha(Math.min(1, (1 - p.age / p.life) / 0.4));
       p.img.setPosition(snap ? Math.round(p.x) : p.x, snap ? Math.round(p.y) : p.y);
     }
   }

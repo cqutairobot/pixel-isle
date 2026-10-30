@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
-import { allSheets } from '../art/sheets';
-import { rasterize, type RGBAImage } from '../art/sprite';
+import { allFrames } from '../art/sheets';
+import type { RGBAImage } from '../art/sprite';
 import type { Tileset } from '../art/terrain';
 
 /** 所有字符网格精灵打包进同一张图集，帧名形如 hero/run_3 */
@@ -28,15 +28,7 @@ function nextPow2(n: number): number {
 
 /** 生成精灵图集。帧之间留 2px 透明间隔，避免平滑像素模式下相邻帧串色。 */
 export function buildAtlas(scene: Phaser.Scene): void {
-  const items: Array<{ name: string; img: RGBAImage }> = [];
-  for (const sheet of allSheets) {
-    for (const [frame, g] of Object.entries(sheet.frames)) {
-      items.push({
-        name: `${sheet.key}/${frame}`,
-        img: rasterize(g, sheet.keys, `${sheet.key}/${frame}`),
-      });
-    }
-  }
+  const items = allFrames();
   items.sort((a, b) => b.img.h - a.img.h);
   const maxW = 512;
   const pad = 2;

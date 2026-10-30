@@ -27,7 +27,16 @@ export function mountSoundboard(): void {
       b.textContent = `${on ? '✔ ' : ''}候选 ${i + 1}`;
     });
   };
+  let group = '';
   for (const id of SFX_IDS) {
+    if (SFX[id].group !== group) {
+      group = SFX[id].group;
+      const h = document.createElement('div');
+      h.textContent = group;
+      h.style.cssText =
+        'grid-column:1 / -1;color:#86ccff;margin-top:12px;border-bottom:2px solid #44506e';
+      table.appendChild(h);
+    }
     const label = document.createElement('div');
     label.textContent = SFX[id].label;
     table.appendChild(label);
@@ -44,6 +53,9 @@ export function mountSoundboard(): void {
       table.appendChild(b);
       return b;
     });
+    // 候选不足 3 个时补空格，保持表格对齐
+    for (let k = SFX[id].candidates.length; k < 3; k++)
+      table.appendChild(document.createElement('div'));
     paint(id);
   }
   const exportBtn = document.createElement('button');
@@ -60,8 +72,12 @@ export function mountSoundboard(): void {
   root.appendChild(exportBtn);
   root.appendChild(out);
   const back = document.createElement('a');
-  back.href = '#gym';
-  back.textContent = '← 回到练习场';
+  back.href = '#';
+  back.onclick = (e) => {
+    e.preventDefault();
+    history.length > 1 ? history.back() : (location.hash = '');
+  };
+  back.textContent = '← 返回游戏';
   back.style.cssText = 'display:block;margin-top:16px;color:#86ccff;font-size:24px';
   root.appendChild(back);
 }

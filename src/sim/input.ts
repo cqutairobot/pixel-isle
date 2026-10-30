@@ -9,6 +9,13 @@ export const BTN = {
   attack: 32,
   /** 切换装备 / 下坐骑 */
   special: 64,
+  // 以下三个只给界面用，sim 不读
+  /** 暂停：Esc、Enter、P、手柄 Start */
+  start: 128,
+  /** 菜单确认：Enter（跳跃键也算确认） */
+  confirm: 256,
+  /** 菜单返回：Esc、Backspace（攻击键也算返回） */
+  cancel: 512,
 } as const;
 
 /** 一个逻辑步的输入：当前按住的、本步新按下的、本步松开的。 */

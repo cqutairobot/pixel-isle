@@ -6,7 +6,7 @@ import { DebugOverlay } from '../debug/overlay';
 import { createTuningPanel } from '../debug/tuningPanel';
 import { currentLayout, EMBEDDED, VIEW_H, VIEW_W, type Layout } from '../platform/display';
 import { InputDevices } from '../platform/input';
-import { DT, FPS, TILE } from '../sim/constants';
+import { FPS, TILE } from '../sim/constants';
 import { BTN, EMPTY_INPUT, type InputFrame } from '../sim/input';
 import { parseLevel, standAt } from '../sim/level';
 import { cloneTuning, PRESETS, type PresetId } from '../sim/tuning';
@@ -18,9 +18,9 @@ import { Juice } from '../view/juice';
 import { Particles } from '../view/particles';
 import { Shake } from '../view/shake';
 import { ATLAS, buildTilesetTexture, TILE_MARGIN, TILE_SPACING } from '../view/textures';
+import { FixedStepLoop, fitCamera, lerp, SLOW_STEPS } from './play/loop';
 
 const SETTINGS_KEY = 'pixel-isle.gym';
-const SLOW_STEPS = [1, 0.5, 0.25];
 
 interface GymSettings {
   preset: PresetId;
@@ -42,8 +42,6 @@ function loadSettings(): GymSettings {
   return d;
 }
 
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
 /**
  * 手感测试关。固定 60Hz 逻辑步 + 渲染插值；sim 产生事件，Juice 负责反馈。
  * 设计见 docs/levels/0-gym.md。
@@ -59,16 +57,11 @@ export class GymScene extends Phaser.Scene {
   private bg!: BackgroundView;
   private overlay!: DebugOverlay;
   private settings = loadSettings();
-  private acc = 0;
-  private slow = 0;
-  private paused = false;
-  private stepOnce = false;
+  private loop = new FixedStepLoop(() => this.simStep());
   private prev = { px: 0, py: 0, cx: 0, cy: 0 };
   private stationIndex = -1;
   private layout!: Layout;
   private lastInput: InputFrame = EMPTY_INPUT;
-  private fps = 60;
-  private stepsThisFrame = 0;
   private gui: { destroy(): void; domElement: HTMLElement } | null = null;
   private guiLoading = false;
   private padStartWas = false;
@@ -157,10 +150,7 @@ export class GymScene extends Phaser.Scene {
 
   private applyLayout(L: Layout): void {
     this.layout = L;
-    const cam = this.cameras.main;
-    cam.setViewport(L.vpX, L.vpY, L.vpW, L.vpH);
-    cam.setOrigin(0, 0);
-    cam.setZoom(L.k);
+    fitCamera(this.cameras.main, L);
     this.ui.setLayout(L);
   }
 
@@ -176,7 +166,7 @@ export class GymScene extends Phaser.Scene {
   private onVisibility = (): void => {
     if (document.hidden) {
       this.devices.releaseAll();
-      this.acc = 0;
+      this.loop.reset();
     }
   };
 
@@ -253,8 +243,8 @@ export class GymScene extends Phaser.Scene {
         break;
       case 'KeyG':
       case 'F4':
-        this.slow = (this.slow + 1) % SLOW_STEPS.length;
-        this.ui.toast(`慢放 ×${SLOW_STEPS[this.slow]}`);
+        this.loop.slow = (this.loop.slow + 1) % SLOW_STEPS.length;
+        this.ui.toast(`慢放 ×${this.loop.scale}`);
         break;
       case 'KeyP':
       case 'Escape':
@@ -262,15 +252,15 @@ export class GymScene extends Phaser.Scene {
         break;
       case 'KeyN':
       case 'F5':
-        if (this.paused) this.stepOnce = true;
+        if (this.loop.paused) this.loop.stepOnce = true;
         break;
     }
   };
 
   private togglePause(): void {
-    this.paused = !this.paused;
-    this.acc = 0;
-    this.ui.setPaused(this.paused);
+    this.loop.paused = !this.loop.paused;
+    this.loop.reset();
+    this.ui.setPaused(this.loop.paused);
   }
 
   private setPreset(id: PresetId): void {
@@ -359,31 +349,11 @@ export class GymScene extends Phaser.Scene {
   }
 
   override update(_time: number, deltaMs: number): void {
-    const dtReal = Math.min(deltaMs, 250) / 1000;
-    this.fps = lerp(this.fps, 1 / Math.max(0.001, dtReal), 0.05);
-
     const padStart = this.devices.padStart();
     if (padStart && !this.padStartWas) this.togglePause();
     this.padStartWas = padStart;
-
-    let steps = 0;
-    const scale = SLOW_STEPS[this.slow]!;
-    if (!this.paused) {
-      this.acc += dtReal * scale;
-      while (this.acc >= DT && steps < 5) {
-        this.simStep();
-        this.acc -= DT;
-        steps++;
-      }
-      if (steps >= 5) this.acc = 0;
-    } else if (this.stepOnce) {
-      this.stepOnce = false;
-      this.simStep();
-      steps = 1;
-    }
-    this.stepsThisFrame = steps;
-    const alpha = this.paused ? 1 : this.acc / DT;
-    this.renderFrame(this.paused ? 0 : dtReal * scale, alpha);
+    const { alpha, dt } = this.loop.advance(deltaMs);
+    this.renderFrame(dt, alpha);
   }
 
   private renderFrame(dt: number, alpha: number): void {
@@ -457,7 +427,7 @@ export class GymScene extends Phaser.Scene {
             : '站立';
     this.ui.setDebugText(
       [
-        `${this.fps.toFixed(0)} fps · ${this.stepsThisFrame} 步/帧 · ×${this.layout.k} · dpr ${this.layout.dpr}`,
+        `${this.loop.fps.toFixed(0)} fps · ${this.loop.stepsThisFrame} 步/帧 · ×${this.layout.k} · dpr ${this.layout.dpr}`,
         `状态 ${state} · 帧 ${this.hero.currentFrame}`,
         `位置 ${p.body.x}, ${p.body.y}`,
         `速度 ${p.vx.toFixed(0)}, ${p.vy.toFixed(0)} px/s`,
@@ -465,7 +435,7 @@ export class GymScene extends Phaser.Scene {
         `缓冲 ${p.buffer}/${t.bufferFrames} ${bar(p.buffer, t.bufferFrames)}`,
         `腾空 ${p.airFrames} 帧 · 粒子 ${this.particles.activeCount}`,
         `第 ${Math.floor(p.body.centerX / TILE)} 列 · 第 ${Math.floor((p.body.bottom - 1) / TILE)} 行`,
-        `逻辑 ${FPS} Hz · 慢放 ×${SLOW_STEPS[this.slow]}`,
+        `逻辑 ${FPS} Hz · 慢放 ×${this.loop.scale}`,
       ].join('\n'),
     );
   }

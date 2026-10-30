@@ -1,5 +1,6 @@
 import type { AudioEngine } from '../audio/engine';
 import { VIEW_W } from '../platform/display';
+import { TILE } from '../sim/constants';
 import type { SimEvent } from '../sim/events';
 import type { World } from '../sim/world';
 import { landImpact, type HeroView } from './heroView';
@@ -7,6 +8,10 @@ import type { Particles } from './particles';
 import type { Shake } from './shake';
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+/** 半音 → 播放速率 */
+const semis = (n: number) => Math.pow(2, n / 12);
+/** 风铃三个音高：G4、C5、E5（相对 C5） */
+const CHIME_RATES = [semis(-5), 1, semis(4)];
 
 /**
  * "动效层"：把 sim 事件翻译成粒子、震屏、音效和主角的挤压拉伸。
@@ -14,6 +19,7 @@ const rnd = (a: number, b: number) => a + Math.random() * (b - a);
  */
 export class Juice {
   private skidDust = 0;
+  private sunSpark = 0;
   private stepAlt = false;
 
   constructor(
@@ -137,6 +143,223 @@ export class Juice {
           this.dust(e.x - 3, e.y, -20, 10, 's');
           this.dust(e.x + 3, e.y, 20, 10, 's');
           break;
+        case 'stomp':
+          this.sound.play('stomp', {
+            rate: semis(Math.min(e.combo - 1, 7) * 2),
+            pan: this.pan(e.x),
+          });
+          this.shake.add(0.07);
+          this.ring(e.x, e.y - 1, ['fx/dust_s'], 6, 60);
+          break;
+        case 'enemyDefeat': {
+          this.sound.play('shatter', { rate: rnd(0.95, 1.08), pan: this.pan(e.x) });
+          this.time(0.12, () =>
+            this.sound.play('free', { rate: rnd(0.95, 1.1), pan: this.pan(e.x), volume: 0.8 }),
+          );
+          // 冰晶碎片四散
+          for (let i = 0; i < 7; i++) {
+            const a = -Math.PI / 2 + rnd(-1.3, 1.3);
+            const sp = rnd(60, 130);
+            this.particles.spawn({
+              x: e.x + rnd(-3, 3),
+              y: e.y - 9,
+              vx: Math.cos(a) * sp,
+              vy: Math.sin(a) * sp,
+              gravity: 520,
+              life: rnd(0.45, 0.7),
+              frames: [`fx2/shard_${i % 3}`],
+              fade: true,
+            });
+          }
+          this.particles.spawn({
+            x: e.x,
+            y: e.y - 7,
+            life: 0.3,
+            frames: ['fx2/puff_0', 'fx2/puff_1', 'fx2/puff_2'],
+          });
+          break;
+        }
+        case 'enemyLost':
+          break;
+        case 'hurt':
+          this.sound.play('hurt', { pan: this.pan(e.x) });
+          this.shake.add(e.dir === 0 ? 0.15 : 0.3);
+          for (let i = 0; i < 4; i++)
+            this.particles.spawn({
+              x: e.x,
+              y: e.y,
+              vx: rnd(-80, 80),
+              vy: rnd(-90, -30),
+              gravity: 300,
+              life: 0.35,
+              frames: ['fx2/sparkle_2', 'fx2/sparkle_1', 'fx2/sparkle_0'],
+            });
+          break;
+        case 'death':
+          this.sound.play('death', { pan: this.pan(e.x) });
+          this.shake.add(0.35);
+          break;
+        case 'splash': {
+          if (e.big) this.sound.play('splash', { pan: this.pan(e.x) });
+          else this.sound.play('splash', { pan: this.pan(e.x), volume: 0.45, rate: 1.4 });
+          const n = e.big ? 12 : 5;
+          for (let i = 0; i < n; i++) {
+            this.particles.spawn({
+              x: e.x + rnd(-5, 5),
+              y: e.y - 1,
+              vx: rnd(-70, 70) * (e.big ? 1 : 0.6),
+              vy: rnd(-200, -90) * (e.big ? 1 : 0.6),
+              gravity: 700,
+              life: rnd(0.4, 0.7),
+              frames: [i % 3 === 0 ? 'fx2/drop_big' : 'fx2/drop'],
+              depth: 31,
+            });
+          }
+          break;
+        }
+        case 'blockHit': {
+          const x = e.col * TILE + TILE / 2;
+          const y = e.row * TILE;
+          this.sound.play('bell', { rate: rnd(0.97, 1.04), pan: this.pan(x) });
+          this.particles.spawn({
+            x,
+            y: y - 2,
+            life: 0.25,
+            frames: ['fx2/sparkle_0', 'fx2/sparkle_2', 'fx2/sparkle_1'],
+          });
+          this.ring(x, y + 8, ['fx2/ring_0', 'fx2/ring_1', 'fx2/ring_2'], 1, 0, 0.3);
+          if (e.item && e.item !== 'shell') this.sound.play('pop', { pan: this.pan(x) });
+          break;
+        }
+        case 'blockEmpty':
+          this.sound.play('bonk', { rate: 0.75, pan: this.pan(e.col * TILE) });
+          break;
+        case 'blockBreak': {
+          const x = e.col * TILE + TILE / 2;
+          const y = e.row * TILE + TILE / 2;
+          this.sound.play('brick', { rate: rnd(0.95, 1.05), pan: this.pan(x) });
+          this.shake.add(0.06);
+          const dirs = [
+            [-1, -1.3],
+            [1, -1.3],
+            [-1, -0.7],
+            [1, -0.7],
+          ];
+          dirs.forEach(([dx, dy], i) => {
+            this.particles.spawn({
+              x: x + dx! * 4,
+              y: y + (dy! < -1 ? -4 : 4),
+              vx: dx! * rnd(50, 80),
+              vy: dy! * rnd(150, 190),
+              gravity: 800,
+              life: 0.9,
+              frames: ['block/frag_0', 'block/frag_1', 'block/frag_2', 'block/frag_3'],
+              fps: 14 + i * 2,
+              flipX: dx! < 0,
+            });
+          });
+          for (let i = 0; i < 3; i++)
+            this.dust(x + rnd(-6, 6), y + 6, rnd(-30, 30), rnd(-20, -5), 'm', 0.35);
+          break;
+        }
+        case 'blockReveal': {
+          const x = e.col * TILE + TILE / 2;
+          const y = e.row * TILE + TILE / 2;
+          this.sound.play('reveal', { pan: this.pan(x) });
+          this.ring(x, y, ['fx2/ring_1', 'fx2/ring_2', 'fx2/ring_3'], 1, 0, 0.35);
+          this.ring(x, y, ['fx2/sparkle_2', 'fx2/sparkle_1'], 6, 70);
+          break;
+        }
+        case 'itemSpawn':
+          break;
+        case 'collect': {
+          if (e.kind === 'shell') {
+            this.sound.play('shell', {
+              rate: semis(Math.min(e.chain, 12)),
+              pan: this.pan(e.x),
+              volume: 0.9,
+            });
+            if (e.fromBlock) {
+              // 从砖里顶出来的贝壳：往上一跳再消失
+              this.particles.spawn({
+                x: e.x,
+                y: e.y - 6,
+                vy: -170,
+                gravity: 520,
+                life: 0.42,
+                frames: ['item/shell_0', 'item/shell_1', 'item/shell_2', 'item/shell_3'],
+                fps: 16,
+                fade: true,
+              });
+            }
+          } else if (e.kind === 'bigShell') this.sound.play('bigShell', { pan: this.pan(e.x) });
+          else if (e.kind === 'mango')
+            this.sound.play(e.shells ? 'shell' : 'heal', { pan: this.pan(e.x) });
+          else if (e.kind === 'sun') this.sound.play('sun', { pan: this.pan(e.x) });
+          else if (e.kind === 'glass') this.sound.play('glass', { pan: this.pan(e.x) });
+          this.particles.spawn({
+            x: e.x,
+            y: e.y,
+            life: 0.3,
+            frames: ['fx2/sparkle_2', 'fx2/sparkle_1', 'fx2/sparkle_0'],
+          });
+          if (e.kind !== 'shell') this.ring(e.x, e.y, ['fx2/sparkle_1', 'fx2/sparkle_0'], 8, 80);
+          break;
+        }
+        case 'heal':
+          for (let i = 0; i < 5; i++)
+            this.particles.spawn({
+              x: p.body.centerX + rnd(-6, 6),
+              y: p.body.y + rnd(0, 6),
+              vy: rnd(-50, -30),
+              vx: rnd(-10, 10),
+              life: 0.7,
+              frames: ['fx2/heart'],
+              fade: true,
+            });
+          break;
+        case 'checkpoint':
+          this.sound.play('checkpoint', { pan: this.pan(e.x) });
+          this.ring(
+            e.x,
+            e.y - 30,
+            ['fx2/ring_0', 'fx2/ring_1', 'fx2/ring_2', 'fx2/ring_3'],
+            1,
+            0,
+            0.4,
+          );
+          this.ring(e.x, e.y - 30, ['fx2/sparkle_2', 'fx2/sparkle_1', 'fx2/sparkle_0'], 8, 90);
+          break;
+        case 'chime':
+          this.sound.play('chime', { rate: CHIME_RATES[e.index] ?? 1, pan: this.pan(e.x) });
+          this.particles.spawn({
+            x: e.x,
+            y: e.y,
+            life: 0.3,
+            frames: ['fx2/sparkle_1', 'fx2/sparkle_0'],
+          });
+          break;
+        case 'chimeSolved':
+          this.time(0.25, () => this.sound.play('glass', { pan: this.pan(e.x) }));
+          this.ring(e.x, e.y, ['fx2/sparkle_2', 'fx2/sparkle_1', 'fx2/sparkle_0'], 10, 100);
+          break;
+        case 'clear':
+          this.sound.play('clear');
+          for (let i = 0; i < 26; i++) {
+            const k = ['g', 'y', 'r'][i % 3]!;
+            this.particles.spawn({
+              x: p.body.centerX + rnd(-90, 90),
+              y: p.body.y - rnd(60, 110),
+              vx: rnd(-20, 20),
+              vy: rnd(10, 50),
+              gravity: 30,
+              life: rnd(1.6, 2.4),
+              frames: [`fx2/leaf${k}_0`, `fx2/leaf${k}_1`, `fx2/leaf${k}_2`, `fx2/leaf${k}_1`],
+              fps: rnd(5, 9),
+              fade: true,
+            });
+          }
+          break;
         case 'respawn':
           this.sound.play('respawn', { pan: this.pan(e.x) });
           for (let i = 0; i < 8; i++) {
@@ -159,9 +382,52 @@ export class Juice {
     }
   }
 
-  /** 每个渲染帧调用：持续性的效果（急停时连续扬尘） */
+  /** 一圈向外散开的粒子 */
+  private ring(x: number, y: number, frames: string[], n: number, speed: number, life = 0.3): void {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      this.particles.spawn({
+        x,
+        y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed * 0.6,
+        drag: 4,
+        life,
+        frames,
+      });
+    }
+  }
+
+  private timers: Array<{ t: number; fn: () => void }> = [];
+  /** 延迟一点再播（音效错开） */
+  private time(t: number, fn: () => void): void {
+    this.timers.push({ t, fn });
+  }
+
+  /** 每个渲染帧调用：持续性的效果（急停时连续扬尘、太阳果光环） */
   tick(dt: number, world: World): void {
+    this.timers = this.timers.filter((tm) => {
+      tm.t -= dt;
+      if (tm.t > 0) return true;
+      tm.fn();
+      return false;
+    });
     const p = world.player;
+    if (world.sunTimer > 0) {
+      this.sunSpark -= dt;
+      if (this.sunSpark <= 0) {
+        this.sunSpark = 0.06;
+        this.particles.spawn({
+          x: p.body.centerX + rnd(-7, 7),
+          y: p.body.y + rnd(0, 14),
+          vx: rnd(-10, 10),
+          vy: rnd(-40, -15),
+          life: 0.4,
+          frames: ['fx2/sparkle_1', 'fx2/sparkle_0'],
+          depth: 9,
+        });
+      }
+    }
     if (p.skidding && p.onGround) {
       this.skidDust -= dt;
       if (this.skidDust <= 0) {
