@@ -36,6 +36,9 @@ export class Player {
   /** 下穿单向平台的剩余帧数 */
   dropTimer = 0;
   running = false;
+  /** 连续按住同一方向的帧数（长按方向奔跑） */
+  dirHeldFrames = 0;
+  private lastDir = 0;
   skidding = false;
   crouching = false;
   lookingUp = false;
@@ -71,6 +74,8 @@ export class Player {
     this.jumpCuttable = false;
     this.dropTimer = 0;
     this.skidding = false;
+    this.dirHeldFrames = 0;
+    this.lastDir = 0;
     this.airFrames = 0;
     this.groundFrames = 0;
     this.peakBottom = b.bottom;
@@ -93,7 +98,12 @@ export class Player {
     const down = isHeld(input, BTN.down);
     const jumpHeld = isHeld(input, BTN.jump);
     const dir = (right ? 1 : 0) - (left ? 1 : 0);
-    this.running = env.autoRun || isHeld(input, BTN.action);
+    this.dirHeldFrames =
+      dir !== 0 && dir === this.lastDir ? this.dirHeldFrames + 1 : dir !== 0 ? 1 : 0;
+    this.lastDir = dir;
+    // 奔跑状态只在地面上更新，空中保持起跳时的状态，跳跃弧线才可预测
+    if (this.onGround || env.autoRun)
+      this.running = env.autoRun || this.dirHeldFrames > t.runDelayFrames;
 
     if (isPressed(input, BTN.jump)) this.buffer = t.bufferFrames;
     if (this.dropTimer > 0) this.dropTimer--;

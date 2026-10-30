@@ -28,7 +28,7 @@ describe('练习场地图', () => {
 
   it('缝隙与台阶都有对应的数字牌', () => {
     const signs = level.markers.filter((m) => m.kind === 'sign').map((m) => m.data?.value);
-    expect(signs).toEqual([2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5]);
+    expect(signs).toEqual([1, 2, 3, 4, 5, 1, 2, 3, 4]);
   });
 
   it('站点首尾相接，传送点脚下是地面、身体所在处是空的', () => {

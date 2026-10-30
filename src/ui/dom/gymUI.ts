@@ -15,13 +15,14 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 const HELP_GAME: Array<[string, string]> = [
-  ['← → / A D', '移动'],
-  ['↓ / S', '下蹲（往下看）'],
-  ['↑ / W', '抬头（往上看）'],
-  ['Z / 空格 / K', '跳（按住跳得更高）'],
-  ['X / J', '跑（按住）'],
+  ['A D / ← →', '移动（按住不放会加速成跑）'],
+  ['S / ↓', '下蹲（往下看）'],
+  ['W / ↑', '抬头（往上看）'],
+  ['K / 空格 / Z', '跳（按住跳得更高）'],
+  ['J / X', '攻击（第 2 关拿到回旋海星后可用）'],
+  ['L / C', '切换装备、下坐骑（之后的关卡）'],
   ['↓ + 跳', '下穿单向平台'],
-  ['手柄', 'A 跳 · X 跑 · 摇杆移动'],
+  ['手柄', 'A 跳 · X 攻击 · Y 切换 · 摇杆移动'],
 ];
 
 const HELP_GYM: Array<[string, string]> = [
@@ -83,7 +84,8 @@ export class GymUI {
       ['up', '↑'],
       ['down', '↓'],
       ['jump', '跳'],
-      ['action', '跑'],
+      ['attack', '攻'],
+      ['run', '跑'],
     ] as const) {
       this.keyEls[id] = el('div', 'key', this.keys, label);
     }
@@ -114,7 +116,7 @@ export class GymUI {
   }
 
   setRunMode(auto: boolean, animate = true): void {
-    this.runBadge.innerHTML = auto ? '<b>自动奔跑</b>' : '按住 X 跑';
+    this.runBadge.innerHTML = auto ? '<b>自动奔跑</b>' : '长按方向跑';
     if (animate) this.pop(this.runBadge);
   }
 

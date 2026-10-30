@@ -9,12 +9,12 @@ function measureJump(preset: 'A' | 'B' | 'C', holdFrames: number, runFirst = fal
   const w = makeWorld(flatRows(80, 16, 4), preset);
   const d = new Driver(w);
   const p = w.player;
-  if (runFirst) d.run(70, BTN.right | BTN.action);
+  if (runFirst) d.run(90, BTN.right);
   const base = p.body.bottom;
   let minBottom = base;
-  const held = (runFirst ? BTN.right | BTN.action : 0) | BTN.jump;
+  const held = (runFirst ? BTN.right : 0) | BTN.jump;
   for (let i = 0; i < 90; i++) {
-    d.step(i < holdFrames ? held : runFirst ? BTN.right | BTN.action : 0);
+    d.step(i < holdFrames ? held : runFirst ? BTN.right : 0);
     minBottom = Math.min(minBottom, p.body.bottom);
   }
   return base - minBottom;
@@ -56,19 +56,38 @@ describe('跳跃高度', () => {
 });
 
 describe('地面移动', () => {
-  it('约 6 帧加速到走速，按住跑键后加速到跑速', () => {
+  it('约 6 帧加速到走速；长按方向键约 0.3 秒后加速到跑速', () => {
     const w = makeWorld(flatRows(120));
     const d = new Driver(w);
     d.run(6, BTN.right);
     expect(w.player.vx).toBeGreaterThanOrEqual(88);
-    d.run(40, BTN.right | BTN.action);
+    d.run(40, BTN.right);
+    expect(w.player.running).toBe(true);
     expect(w.player.vx).toBeCloseTo(150, 5);
+  });
+
+  it('短按方向键只走不跑', () => {
+    const w = makeWorld(flatRows(120));
+    const d = new Driver(w);
+    d.run(15, BTN.right);
+    expect(w.player.running).toBe(false);
+    expect(w.player.vx).toBeLessThanOrEqual(90);
+  });
+
+  it('换方向后重新计时，先走再跑', () => {
+    const w = makeWorld(flatRows(160, 12, 80));
+    const d = new Driver(w);
+    d.run(60, BTN.right);
+    expect(w.player.running).toBe(true);
+    d.run(5, BTN.left);
+    expect(w.player.running).toBe(false);
   });
 
   it('松手约 5 帧从走速停下', () => {
     const w = makeWorld(flatRows(120));
     const d = new Driver(w);
-    d.run(20, BTN.right);
+    d.run(15, BTN.right);
+    expect(w.player.running).toBe(false);
     d.run(5, 0);
     expect(w.player.vx).toBeLessThanOrEqual(1);
   });
@@ -76,8 +95,8 @@ describe('地面移动', () => {
   it('高速转身触发急停事件', () => {
     const w = makeWorld(flatRows(120));
     const d = new Driver(w);
-    d.run(40, BTN.right | BTN.action);
-    d.step(BTN.left | BTN.action);
+    d.run(60, BTN.right);
+    d.step(BTN.left);
     expect(w.events.some((e) => e.type === 'skid')).toBe(true);
     expect(w.player.skidding).toBe(true);
   });
@@ -305,7 +324,7 @@ describe('确定性', () => {
     const script = (i: number) =>
       (i % 50 < 30 ? BTN.right : BTN.left) |
       (i % 37 < 10 ? BTN.jump : 0) |
-      (i % 90 < 45 ? BTN.action : 0);
+      (i % 90 < 45 ? BTN.attack : 0);
     const run = () => {
       const w = makeWorld(flatRows(200, 20, 50));
       const d = new Driver(w);

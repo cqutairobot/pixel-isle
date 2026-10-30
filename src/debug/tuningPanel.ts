@@ -16,6 +16,7 @@ type Spec = [keyof Tuning, string, number, number, number];
 const MOVE: Spec[] = [
   ['walkSpeed', '走速 px/s', 40, 200, 1],
   ['runSpeed', '跑速 px/s', 60, 260, 1],
+  ['runDelayFrames', '长按多少帧开始跑', 0, 60, 1],
   ['accelFramesToWalk', '起步帧数', 1, 30, 1],
   ['accelFramesWalkToRun', '走→跑帧数', 1, 90, 1],
   ['decelFramesFromWalk', '停下帧数', 1, 30, 1],

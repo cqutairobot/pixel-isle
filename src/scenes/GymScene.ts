@@ -208,7 +208,7 @@ export class GymScene extends Phaser.Scene {
         this.world.options.autoRun = this.settings.autoRun;
         this.ui.setRunMode(this.settings.autoRun);
         this.ui.toast(
-          this.settings.autoRun ? '自动奔跑：开（X 不再需要按住）' : '自动奔跑：关（按住 X 跑）',
+          this.settings.autoRun ? '自动奔跑：开（一动就是跑）' : '自动奔跑：关（长按方向键才跑）',
         );
         audio.play('ui');
         this.saveSettings();
@@ -342,6 +342,10 @@ export class GymScene extends Phaser.Scene {
     const w = this.world;
     this.prev = { px: w.player.body.x, py: w.player.body.y, cx: w.camera.x, cy: w.camera.y };
     this.lastInput = this.devices.sample();
+    if (this.lastInput.pressed & BTN.attack) {
+      this.ui.toast('攻击键 J：第 2 关拿到回旋海星后就能用，现在先踩敌人');
+      audio.play('ui', { rate: 0.8 });
+    }
     w.step(this.lastInput);
     this.juice.handle(w.events, w);
     this.overlay.onStep(w);
@@ -435,7 +439,8 @@ export class GymScene extends Phaser.Scene {
       up: (held & BTN.up) !== 0,
       down: (held & BTN.down) !== 0,
       jump: (held & BTN.jump) !== 0,
-      action: (held & BTN.action) !== 0 || w.options.autoRun,
+      attack: (held & BTN.attack) !== 0,
+      run: w.player.running,
     });
     const bar = (v: number, max: number) =>
       `<span class="bar" style="width:calc(var(--px) * ${Math.round((v / Math.max(1, max)) * 24)})"></span>`;

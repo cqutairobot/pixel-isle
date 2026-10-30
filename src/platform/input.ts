@@ -10,20 +10,21 @@ const KEYMAP: Record<string, number> = {
   KeyW: BTN.up,
   ArrowDown: BTN.down,
   KeyS: BTN.down,
+  // WASD 这套：J 攻击、K 跳、L 切换；方向键这套：X 攻击、Z 跳、C 切换；空格也是跳
+  KeyK: BTN.jump,
   KeyZ: BTN.jump,
   Space: BTN.jump,
-  KeyK: BTN.jump,
-  KeyX: BTN.action,
-  KeyJ: BTN.action,
-  KeyC: BTN.special,
+  KeyJ: BTN.attack,
+  KeyX: BTN.attack,
   KeyL: BTN.special,
+  KeyC: BTN.special,
 };
 
-/** 标准手柄映射：A/B 跳、X 动作、Y 切换，十字键与左摇杆移动 */
+/** 标准手柄映射：A 跳、X（或 B）攻击、Y 切换，十字键与左摇杆移动 */
 const PAD_BUTTONS: Array<[number, number]> = [
   [0, BTN.jump],
-  [1, BTN.jump],
-  [2, BTN.action],
+  [1, BTN.attack],
+  [2, BTN.attack],
   [3, BTN.special],
   [12, BTN.up],
   [13, BTN.down],

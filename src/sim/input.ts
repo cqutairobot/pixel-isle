@@ -5,7 +5,9 @@ export const BTN = {
   up: 4,
   down: 8,
   jump: 16,
-  action: 32,
+  /** 攻击 / 使用装备 */
+  attack: 32,
+  /** 切换装备 / 下坐骑 */
   special: 64,
 } as const;
 

@@ -28,8 +28,10 @@ function measure(preset: PresetId, run: boolean, holdFrames: number) {
     prev = held;
     w.step(f);
   };
-  const move = BTN.right | (run ? BTN.action : 0);
-  for (let i = 0; i < 90; i++) step(move);
+  // 走：只按住 12 帧就起跳（还没开始跑）；跑：长按 90 帧到满速再起跳
+  const move = BTN.right;
+  const walkHold = Math.min(12, w.tuning.runDelayFrames - 1);
+  for (let i = 0; i < (run ? 90 : walkHold); i++) step(move);
   const p = w.player;
   const x0 = p.body.x;
   const base = p.body.bottom;

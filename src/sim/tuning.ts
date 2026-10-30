@@ -4,9 +4,11 @@ import { FPS, TILE } from './constants';
 export interface Tuning {
   walkSpeed: number;
   runSpeed: number;
+  /** 按住方向键多少帧后开始从走速加速到跑速（长按方向奔跑） */
+  runDelayFrames: number;
   /** 从静止加速到走速所需帧数 */
   accelFramesToWalk: number;
-  /** 按住跑键时，从走速加速到跑速所需帧数 */
+  /** 开始奔跑后，从走速加速到跑速所需帧数 */
   accelFramesWalkToRun: number;
   /** 松手后从走速停下所需帧数 */
   decelFramesFromWalk: number;
@@ -83,6 +85,7 @@ export const PRESETS: Record<PresetId, { name: string; tuning: Tuning }> = {
       ...common,
       walkSpeed: 90,
       runSpeed: 150,
+      runDelayFrames: 18,
       accelFramesToWalk: 6,
       accelFramesWalkToRun: 24,
       decelFramesFromWalk: 5,
@@ -105,6 +108,7 @@ export const PRESETS: Record<PresetId, { name: string; tuning: Tuning }> = {
       ...common,
       walkSpeed: 96,
       runSpeed: 160,
+      runDelayFrames: 12,
       accelFramesToWalk: 4,
       accelFramesWalkToRun: 16,
       decelFramesFromWalk: 4,
@@ -127,6 +131,7 @@ export const PRESETS: Record<PresetId, { name: string; tuning: Tuning }> = {
       ...common,
       walkSpeed: 84,
       runSpeed: 150,
+      runDelayFrames: 24,
       accelFramesToWalk: 10,
       accelFramesWalkToRun: 36,
       decelFramesFromWalk: 9,
