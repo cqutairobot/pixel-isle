@@ -3,9 +3,10 @@
 在浏览器里玩的原创像素风横版平台跳跃游戏。玩法是马里奥式的跑、跳、踩、顶，加上投掷装备、坐骑、冻住敌人滚雪球，以及一段海岛冒险故事。
 
 - 总体计划：[PLAN.md](PLAN.md)
-- 当前进度：**M0 手感测试关（练习场）**，详细计划见 [docs/levels/0-gym.md](docs/levels/0-gym.md)
+- 当前进度：**M1 第 1 关「晨钟村 · 晨光沙滩」**。M1-a（玩法与关卡）先交付试玩，M1-b（对话、过场、标题、音乐）接着做。详细计划见 [docs/levels/1-1.md](docs/levels/1-1.md)
+- 练习场（M0）的计划见 [docs/levels/0-gym.md](docs/levels/0-gym.md)
 
-![练习场](docs/art/gym-heights.png)
+![第 1 关总览](docs/levels/img/1-1.png)
 
 ## 在线试玩（不用安装）
 
@@ -14,7 +15,7 @@
 - 每次交付新内容，都会更新到这个链接。
 - 链接默认只有仓库所有者能打开；想给别人玩，在页面的分享菜单里开启分享。
 - 页面打开后，先用鼠标点一下画面，键盘才能控制。需要电脑键盘或手柄，手机上不能玩。
-- 试听板：在练习场里按 Y，或者在链接后面加 `#soundboard`。
+- 打开就是第 1 关。练习场：在链接后面加 `#gym`。试听板：加 `#soundboard`（或在练习场里按 Y）。
 
 ## 在 Mac 上本地运行
 
@@ -36,9 +37,9 @@ npm install
 npm run dev
 ```
 
-浏览器打开终端里显示的地址（默认 <http://localhost:5173>）。推荐用 Chrome，Safari 也支持。第一次按任意键后会有声音。
+浏览器打开终端里显示的地址（默认 <http://localhost:5173>，直接进第 1 关；练习场是 <http://localhost:5173/#gym>）。推荐用 Chrome，Safari 也支持。第一次按任意键后会有声音。
 
-## 练习场操作
+## 操作
 
 | 动作 | 键盘 | 手柄 |
 |---|---|---|
@@ -48,6 +49,11 @@ npm run dev
 | 攻击（第 2 关拿到回旋海星后可用） | J 或 X | X |
 | 切换装备 / 下坐骑（之后的关卡） | L 或 C | Y |
 | 下穿单向平台 | ↓ + 跳 | 下 + A |
+| 和村民交谈（靠近时头顶出现 ↑） | W 或 ↑ | 上 |
+| 暂停（暂停时按 R 重新开始本关） | Esc、Enter 或 P | Start |
+
+第 1 关里的开发用键：\`（Esc 下面的键）调试叠加层 · G 慢放 · 暂停时 N 逐帧 · Shift+1 / Shift+2 从第 1 / 第 2 个检查点开始。
+本地运行时还可以用网址参数：`?cp=2`（从第 2 个检查点开始）、`?level=1-1`。
 
 练习场专用键（Mac 的 F 键默认是亮度、音量键，所以主要用字母和数字键）：
 
@@ -86,20 +92,24 @@ npm run dev
 | `npm run preview-art` | 把精灵渲染成放大的 PNG（默认输出到 `docs/art/`） |
 | `npx tsx scripts/jump-metrics.ts` | 打印各手感预设的跳跃高度与距离 |
 | `npm run analyze-sfx` | 分析音效候选的时长、响度、音高 |
+| `npm run overview` | 生成整关总览图（`docs/levels/img/1-1.png`，叠加回放轨迹） |
+| `npm run replays` | 用"自动玩家"重新录制回放（`tests/replays/`；改了关卡导致回放测试失败时用） |
+| `npx tsx scripts/preview-sprites.ts 输出.png enemy/,item/` | 按名字前缀把精灵渲染成放大的 PNG |
 
 ## 目录结构
 
 ```
-src/sim/       纯逻辑：物理、主角、镜头、关卡解析（不依赖 Phaser，可在 Node 里测试）
+src/sim/       纯逻辑：物理、主角、敌人、方块、道具、生命与检查点、镜头、关卡解析、回放（不依赖 Phaser）
 src/view/      表现层：精灵、帽带、粒子、震屏、视差背景、动效
-src/art/       代码绘制的像素美术：调色板、精灵网格、地形规则、程序化背景
+src/art/       代码绘制的像素美术：调色板、精灵网格与画笔、地形规则、程序化背景
 src/audio/     音效合成（ZzFX）、音频引擎、试听板
-src/content/   关卡与文本
-src/ui/        界面（练习场用 DOM 叠加层）
+src/content/   关卡、对白与界面文字（所有显示的文字都在这里）
+src/ui/        画布界面：像素文字、HUD、提示、结算面板（练习场仍用 DOM 叠加层）
+src/platform/  显示缩放、键盘手柄输入、存档
 src/debug/     调试叠加层、调参面板
-src/scenes/    Phaser 场景
-tests/ e2e/    单元测试与浏览器测试
-docs/          每关详细计划、美术截图
+src/scenes/    Phaser 场景（启动、练习场、关卡、界面）
+tests/ e2e/    单元测试（含关卡校验、回放通关）与浏览器测试
+docs/          每关详细计划、关卡总览图、美术截图
 ```
 
 ## 致谢与许可

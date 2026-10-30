@@ -7,7 +7,7 @@ import type { EntityDef, ParsedLevel } from '../sim/level';
 import { addImageTexture, ATLAS, buildTilesetTexture, TILE_MARGIN, TILE_SPACING } from './textures';
 
 /** 每种装饰用哪一帧、锚点在哪（默认左下角对齐格子左下角） */
-const DECO: Record<
+export const DECO: Record<
   string,
   { frames: string[]; fps?: number; ox?: number; depth?: number; dy?: number }
 > = {

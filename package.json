@@ -18,7 +18,9 @@
     "format": "prettier --write .",
     "preview-art": "tsx scripts/preview-art.ts",
     "analyze-sfx": "tsx scripts/analyze-sfx.ts",
-    "build:artifact": "vite build --mode artifact && tsx scripts/build-artifact.ts"
+    "build:artifact": "vite build --mode artifact && tsx scripts/build-artifact.ts",
+    "replays": "tsx scripts/record-replays.ts",
+    "overview": "tsx scripts/level-overview.ts"
   },
   "dependencies": {
     "@fontsource/fusion-pixel-12px-proportional-sc": "^5.3.0",

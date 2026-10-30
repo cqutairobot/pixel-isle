@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/engine';
+import { END_STATES } from '../content/cutscenes/endStates';
 import { ADOU_SOLVED, BAILU_MEET, BELLTOWER, NPC_TALK } from '../content/dialog/1-1';
 import { LEVELS } from '../content/levels';
 import { HINTS, UI_TEXT } from '../content/text';
@@ -274,11 +275,11 @@ export class LevelScene extends Phaser.Scene {
   private resolveWaiting(): void {
     const w = this.world;
     if (w.pendingTrigger === 'belltower') {
-      w.resolveTrigger({ flags: ['huihui', 'belltower'] });
+      w.resolveTrigger(END_STATES.belltower);
       const last = BELLTOWER[2]!.at(-1)!;
       this.time.delayedCall(450, () => this.say(last.text, () => this.ents.huihuiPos));
     } else if (w.pendingTrigger === 'bailu') {
-      w.resolveTrigger({ flags: ['metBailu'] });
+      w.resolveTrigger(END_STATES.bailu);
       this.say(BAILU_MEET[4]!.text, () => this.ents.npcTop('bailu'));
     } else if (w.pendingTrigger) {
       w.resolveTrigger();

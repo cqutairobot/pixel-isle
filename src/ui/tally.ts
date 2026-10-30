@@ -74,6 +74,8 @@ export class Tally {
     this.text(UI_TEXT.glass, 20, rowY[2]!, { color: 'night' });
     this.timeText = this.text('0:00.00', 0, rowY[0]!, { color: 'night' });
     this.shellText = this.text('0', 0, rowY[1]!, { color: 'night' });
+    this.placeRight(this.timeText, rowY[0]!);
+    this.placeRight(this.shellText, rowY[1]!);
     for (let i = 0; i < 3; i++) {
       const img = scene.add.image(W - 56 + i * 15, rowY[2]! + 7, ATLAS, 'ui/glass_slot');
       this.slots.push(img);
