@@ -153,3 +153,53 @@ export const PRESETS: Record<PresetId, { name: string; tuning: Tuning }> = {
 export function cloneTuning(t: Tuning): Tuning {
   return { ...t };
 }
+
+/**
+ * 战斗与关卡规则（不随手感预设变化）。单位同上。
+ * 见 docs/levels/1-1.md §3、PLAN.md §5.1 与 §6.5。
+ */
+export const RULES = {
+  /** 生命 */
+  hearts: 3,
+  assistHearts: 5,
+  /** 受击：停顿、击退、硬直、无敌 */
+  hurtHitstop: 6,
+  knockbackX: 120,
+  knockbackY: 180,
+  hurtStunFrames: 12,
+  hurtIframes: 90,
+  /** 踩踏：停顿、弹起（不按跳 / 按住跳）、踩中后的保护帧、连踩答谢上限 */
+  stompHitstop: 3,
+  stompBounce: 240,
+  stompBounceHeld: 440,
+  stompGraceFrames: 4,
+  stompComboMax: 5,
+  /** 顶碎沙岩砖的停顿 */
+  brickHitstop: 2,
+  /** 掉海、掉坑：多少帧后回到岸上，回来后的无敌帧 */
+  fallRespawnFrames: 36,
+  respawnIframes: 60,
+  /** 死亡：定格帧数、从死亡到复活的总帧数 */
+  deathFreezeFrames: 12,
+  deathFrames: 60,
+  /** 太阳果：持续、最后闪烁提醒、跑速倍数 */
+  sunFrames: 480,
+  sunWarnFrames: 120,
+  sunSpeedMul: 1.15,
+  /** 多次铃砖：第一次顶之后的时限、最多几枚 */
+  multiBlockFrames: 180,
+  multiBlockMax: 8,
+  /** 连续拾取贝壳的判定窗口（音高逐级升高） */
+  shellChainFrames: 30,
+  /** 满心时吃芒果换几枚贝壳 */
+  mangoFullShells: 3,
+  bigShellValue: 10,
+  /** 敌人进入镜头外多少像素以内才开始活动 */
+  activateMargin: 48,
+  /** 敌人的重力与最大下落速度 */
+  enemyGravity: 1000,
+  enemyMaxFall: 300,
+  /** 道具的重力与最大下落速度 */
+  itemGravity: 900,
+  itemMaxFall: 280,
+} as const;

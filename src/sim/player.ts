@@ -17,6 +17,8 @@ export interface PlayerEnv {
   tuning: Tuning;
   derived: Derived;
   autoRun: boolean;
+  /** 走速和跑速的倍数（太阳果期间大于 1），不写就是 1 */
+  speedMul?: number;
   emit(e: SimEvent): void;
 }
 
@@ -51,21 +53,37 @@ export class Player {
   /** 最近一次稳稳站着的位置，掉坑后回到这里 */
   lastSafeX: number;
   lastSafeY: number;
+  /** 这一步头顶撞到了东西（向上速度够快），世界据此判断顶到了哪块砖 */
+  headHit = false;
+  /** 这一步开始时脚底的 y，用来判断是不是"从上面踩下来" */
+  prevBottom: number;
 
   constructor(x: number, y: number) {
     this.body = new Body(x, y, PLAYER_W, PLAYER_H);
     this.peakBottom = this.body.bottom;
+    this.prevBottom = this.body.bottom;
     this.lastSafeX = x;
     this.lastSafeY = y;
+  }
+
+  /** 受伤判定（8×12，比碰撞盒小一圈） */
+  hurtbox(): { x: number; y: number; w: number; h: number } {
+    const b = this.body;
+    return { x: b.x + 1, y: b.y + 2, w: b.w - 2, h: b.h - 2 };
+  }
+
+  /** 踩中敌人后弹起；按住跳跃键时可以中途松开截短（和普通跳一样） */
+  bounce(vy: number, cuttable: boolean): void {
+    this.vy = -vy;
+    this.onGround = false;
+    this.coyote = 0;
+    this.jumpCuttable = cuttable;
   }
 
   /** 传送到 (x, y)，清空所有运动状态 */
   reset(x: number, y: number): void {
     const b = this.body;
-    b.x = x;
-    b.y = y;
-    b.rx = 0;
-    b.ry = 0;
+    b.place(x, y);
     this.vx = 0;
     this.vy = 0;
     this.onGround = false;
@@ -79,6 +97,8 @@ export class Player {
     this.airFrames = 0;
     this.groundFrames = 0;
     this.peakBottom = b.bottom;
+    this.prevBottom = b.bottom;
+    this.headHit = false;
   }
 
   /** 水平速度在走速与跑速之间的比例（0–1），镜头与动画会用到 */
@@ -91,6 +111,8 @@ export class Player {
     const d = env.derived;
     const g = env.grid;
     const b = this.body;
+    this.prevBottom = b.bottom;
+    this.headHit = false;
 
     const left = isHeld(input, BTN.left);
     const right = isHeld(input, BTN.right);
@@ -153,7 +175,7 @@ export class Player {
       env.emit({ type: 'skid', x: b.centerX, y: b.bottom, dir: moveDir });
     this.skidding = skidNow;
 
-    this.updateHorizontal(moveDir, t, d);
+    this.updateHorizontal(moveDir, t, d, env.speedMul ?? 1);
 
     // 重力：下落更重；顶点附近按住跳跃时更轻
     if (this.onGround && !jumped && this.vy > 0) this.vy = 0;
@@ -184,13 +206,18 @@ export class Player {
 
     const blockedY = (x: number, y: number, sign: number) => {
       if (g.solidAt(x, y, b.w, b.h)) return true;
-      return sign > 0 && this.dropTimer === 0 && g.oneWayTopAt(x, y + b.h - 1, b.w);
+      // 隐藏铃砖：只在头顶越过它底边的那一下挡住
+      if (sign < 0) return g.hiddenBelowEdge(x, y + 1, b.w);
+      return this.dropTimer === 0 && g.oneWayTopAt(x, y + b.h - 1, b.w);
     };
     const vyBeforeMove = this.vy;
     const hitY = b.moveY(dy, blockedY, (sign) => sign < 0 && this.tryCornerCorrection(env));
     if (hitY) {
       if (dy < 0) {
-        if (vyBeforeMove < -30) env.emit({ type: 'bonk', x: b.centerX, y: b.y });
+        if (vyBeforeMove < -30) {
+          env.emit({ type: 'bonk', x: b.centerX, y: b.y });
+          this.headHit = true;
+        }
         this.jumpCuttable = false;
       }
       this.vy = 0;
@@ -257,8 +284,8 @@ export class Player {
     env.emit({ type: 'jump', x: this.body.centerX, y: this.body.bottom, run });
   }
 
-  private updateHorizontal(dir: number, t: Tuning, d: Derived): void {
-    const top = this.running ? t.runSpeed : t.walkSpeed;
+  private updateHorizontal(dir: number, t: Tuning, d: Derived, mul: number): void {
+    const top = (this.running ? t.runSpeed : t.walkSpeed) * mul;
     let vx = this.vx;
     if (this.onGround) {
       if (dir !== 0) {
@@ -298,7 +325,11 @@ export class Player {
     for (let o = 1; o <= env.tuning.cornerCorrection; o++) {
       for (const s of [prefer, -prefer]) {
         const nx = b.x + s * o;
-        if (!g.solidAt(nx, b.y - 1, b.w, b.h) && !g.solidAt(nx, b.y, b.w, b.h)) {
+        if (
+          !g.solidAt(nx, b.y - 1, b.w, b.h) &&
+          !g.solidAt(nx, b.y, b.w, b.h) &&
+          !g.hiddenBelowEdge(nx, b.y, b.w)
+        ) {
           b.x = nx;
           env.emit({ type: 'cornerCorrect', dx: s * o });
           return true;

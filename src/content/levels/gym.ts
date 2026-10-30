@@ -8,6 +8,7 @@ import type { LevelDef } from '../../sim/level';
 export const gym: LevelDef = {
   id: 'gym',
   name: '练习场',
+  practice: true,
   chunks: [
     // ① 长跑道（第 0–57 列）
     `
