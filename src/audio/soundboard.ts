@@ -60,7 +60,7 @@ export function mountSoundboard(): void {
   root.appendChild(exportBtn);
   root.appendChild(out);
   const back = document.createElement('a');
-  back.href = './';
+  back.href = '#gym';
   back.textContent = '← 回到练习场';
   back.style.cssText = 'display:block;margin-top:16px;color:#86ccff;font-size:24px';
   root.appendChild(back);

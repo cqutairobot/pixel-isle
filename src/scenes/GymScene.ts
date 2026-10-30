@@ -4,7 +4,7 @@ import { audio } from '../audio/engine';
 import { gym, GYM_STATIONS } from '../content/levels/gym';
 import { DebugOverlay } from '../debug/overlay';
 import { createTuningPanel } from '../debug/tuningPanel';
-import { currentLayout, VIEW_H, VIEW_W, type Layout } from '../platform/display';
+import { currentLayout, EMBEDDED, VIEW_H, VIEW_W, type Layout } from '../platform/display';
 import { InputDevices } from '../platform/input';
 import { DT, FPS, TILE } from '../sim/constants';
 import { BTN, EMPTY_INPUT, type InputFrame } from '../sim/input';
@@ -140,7 +140,16 @@ export class GymScene extends Phaser.Scene {
     this.ui.setPreset(this.settings.preset, PRESETS[this.settings.preset].name, false);
     this.ui.setRunMode(this.settings.autoRun, false);
     this.ui.setSmooth(this.settings.smooth, false);
-    this.ui.toast('按任意键开始 · H 查看操作说明', 4000);
+    const touchOnly =
+      matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches;
+    if (touchOnly) this.ui.toast('练习场需要键盘或手柄，请在电脑上打开', 12000);
+    else
+      this.ui.toast(
+        EMBEDDED
+          ? '先点一下画面，再按任意键开始 · H 查看操作说明'
+          : '按任意键开始 · H 查看操作说明',
+        5000,
+      );
     this.cameras.main.fadeIn(400, 26, 28, 44);
 
     (window as unknown as { __gym: unknown }).__gym = this;
@@ -156,6 +165,8 @@ export class GymScene extends Phaser.Scene {
   }
 
   private unlockAudio = (): void => {
+    // 嵌在网页框里时，点一下画面才能收到键盘输入
+    window.focus();
     if (!audio.unlocked) {
       audio.unlock();
       audio.warmUp();
@@ -223,6 +234,9 @@ export class GymScene extends Phaser.Scene {
       case 'KeyH':
         this.ui.toggleHelp();
         audio.play('ui', { rate: 0.9 });
+        break;
+      case 'KeyY':
+        location.hash = 'soundboard';
         break;
       case 'KeyM':
         audio.setMuted(!audio.settings.muted);

@@ -6,6 +6,9 @@ import { BootScene } from './scenes/BootScene';
 import { GymScene } from './scenes/GymScene';
 
 const params = new URLSearchParams(location.search);
+/** 页面路由：#soundboard 打开试听板（在线试玩页不支持 ?参数，只能用 #名字） */
+const route = location.hash.slice(1);
+window.addEventListener('hashchange', () => location.reload());
 
 function startGame(): void {
   const L = currentLayout();
@@ -33,5 +36,5 @@ function startGame(): void {
   });
 }
 
-if (params.get('scene') === 'soundboard') mountSoundboard();
+if (route === 'soundboard' || params.get('scene') === 'soundboard') mountSoundboard();
 else startGame();

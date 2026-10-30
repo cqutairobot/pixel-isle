@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "format": "prettier --write .",
     "preview-art": "tsx scripts/preview-art.ts",
-    "analyze-sfx": "tsx scripts/analyze-sfx.ts"
+    "analyze-sfx": "tsx scripts/analyze-sfx.ts",
+    "build:artifact": "vite build --mode artifact && tsx scripts/build-artifact.ts"
   },
   "dependencies": {
     "@fontsource/fusion-pixel-12px-proportional-sc": "^5.3.0",

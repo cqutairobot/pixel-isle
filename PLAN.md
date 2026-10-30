@@ -13,6 +13,8 @@
 4. 按 [§10 工作流程](#10-工作流程与交接协议) 继续。
 5. [§12 决策记录](#12-决策记录与默认选择) 里的事项已经定下。用户没提出的话，不要重新讨论。
 
+**在线试玩页**：<https://claude.ai/artifact/B14NuTU4u23E5HA1LDHeuB>（claude.ai Artifact，用户不用安装任何软件就能玩）。每个里程碑交付时都要更新它，做法见 §10.1。
+
 **环境限制（重要）**：云端会话只能访问 npm 仓库。GitHub 只能访问本仓库，kenney.nl、itch.io、opengameart、Google Fonts 等都连不上。所以第三方资源只能从 npm 获取，其余一律自制。确实需要外部文件时，请用户提交到仓库。
 
 ---
@@ -843,8 +845,13 @@ public/                 字体许可证、art-overrides/ 等静态文件
    - 新增的美术截图放进 `docs/art/`。
 4. **交付前自检**：§6 中和本关相关的条目，以及 §10.3 的完成标准。
 5. 更新 README（运行步骤）、PLAN.md 的复选框和 §13 进度日志，然后推送到当前会话的分支。
-6. **回复用户**：分支名、Mac 本地运行命令（见下）、这次做了什么、需要重点试玩的地方。
-7. **试玩与合并**：
+6. **更新在线试玩页**（同一个链接，见 §0）：
+   - 运行 `npm run build:artifact`，它会生成 `dist-artifact/page/index.html`，并打印要随页面发布的文件清单。
+   - 用 Artifact 工具发布：`file_path` 填 `dist-artifact/page/index.html`，`files` 填脚本打印的清单。新会话还要传 `url`（§0 的链接），并且发布前先 `read` 一次这个页面。
+   - 脚本文件名带哈希，每次构建都会变。发布前先用 `list`（scope: files）查看现有文件，把不再使用的旧 `assets/*.js` 在 `files` 里设为 `null` 删掉。
+   - 试玩页的构建与本地不同：Phaser、lil-gui 从 jsDelivr 加载（试玩页只允许白名单 CDN 的第三方脚本），界面字体以 data: URI 内联，页面路由只能用 `#名字`（例如 `#soundboard`）。
+7. **回复用户**：在线试玩链接、分支名、Mac 本地运行命令（见下）、这次做了什么、需要重点试玩的地方。
+8. **试玩与合并**：
    - 用户试玩、反馈，Claude 修改。
    - 用户确认通过后，由用户把分支合并进 main（或者明确让 Claude 开 PR，再由用户合并）。
    - 新会话从 main 开始。
@@ -954,3 +961,4 @@ npm run dev        # 然后打开终端里显示的地址，默认 http://localh
 |---|---|---|---|
 | 2026-10-30 | `claude/vigilant-dirac-asogye` | 写完 PLAN.md v1（还没有代码） | 等用户确认 PLAN.md → 写 `docs/levels/0-gym.md` → 开始 M0 |
 | 2026-10-30 | `claude/vigilant-dirac-asogye` | M0 完成：练习场 7 个站点；物理与主角控制器（30 个单元测试）；sim 内镜头；代码绘制美术 v1（小满 17 帧、帽带、石砖地形、牌子、粒子、视差背景）；ZzFX 音效 9 个槽位 × 3 候选 + 试听板；DOM 叠加界面；调试工具；e2e 冒烟测试通过 | 等用户试玩 M0、回答 §9 的 7 个问题 → 锁定手感与美术方向 → 写 `docs/levels/1-1.md` 开始 M1 |
+| 2026-10-30 | `claude/vigilant-dirac-asogye` | 加入在线试玩页（claude.ai Artifact，链接见 §0）：`npm run build:artifact` 生成发布文件；嵌入网页时留 16px 边距、提示先点画面；试听板改用 `#soundboard`（练习场里按 Y） | 等用户在试玩页上试玩 M0、回答 §9 的 7 个问题 |

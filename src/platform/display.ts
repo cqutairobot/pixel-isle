@@ -17,11 +17,19 @@ export interface Layout {
   vpH: number;
 }
 
-/** 按窗口尺寸计算整数倍缩放与居中的视口，四周剩下的部分是信箱区。 */
-export function computeLayout(cssW: number, cssH: number, dpr: number): Layout {
+/** 页面是否嵌在别的页面的框里（例如 claude.ai 的在线试玩页） */
+export const EMBEDDED = typeof window !== 'undefined' && window.self !== window.top;
+
+/**
+ * 按窗口尺寸计算整数倍缩放与居中的视口，四周剩下的部分是信箱区。
+ * gutter：四周至少留出的 CSS 像素（嵌入网页时留 16px，避免画面贴边）。
+ */
+export function computeLayout(cssW: number, cssH: number, dpr: number, gutter = 0): Layout {
   const devW = Math.max(1, Math.round(cssW * dpr));
   const devH = Math.max(1, Math.round(cssH * dpr));
-  const k = Math.max(1, Math.floor(Math.min(devW / VIEW_W, devH / VIEW_H)));
+  const availW = Math.max(1, devW - 2 * gutter * dpr);
+  const availH = Math.max(1, devH - 2 * gutter * dpr);
+  const k = Math.max(1, Math.floor(Math.min(availW / VIEW_W, availH / VIEW_H)));
   const vpW = VIEW_W * k;
   const vpH = VIEW_H * k;
   return {
@@ -37,5 +45,10 @@ export function computeLayout(cssW: number, cssH: number, dpr: number): Layout {
 }
 
 export function currentLayout(): Layout {
-  return computeLayout(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
+  return computeLayout(
+    window.innerWidth,
+    window.innerHeight,
+    window.devicePixelRatio || 1,
+    EMBEDDED ? 16 : 0,
+  );
 }

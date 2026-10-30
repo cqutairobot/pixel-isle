@@ -7,7 +7,16 @@
 
 ![练习场](docs/art/gym-heights.png)
 
-## 在 Mac 上运行
+## 在线试玩（不用安装）
+
+**<https://claude.ai/artifact/B14NuTU4u23E5HA1LDHeuB>**
+
+- 每次交付新内容，都会更新到这个链接。
+- 链接默认只有仓库所有者能打开；想给别人玩，在页面的分享菜单里开启分享。
+- 页面打开后，先用鼠标点一下画面，键盘才能控制。需要电脑键盘或手柄，手机上不能玩。
+- 试听板：在练习场里按 Y，或者在链接后面加 `#soundboard`。
+
+## 在 Mac 上本地运行
 
 需要 **Node.js 22.12 或更新版本**（推荐 24 LTS）。还没装的话，用 Homebrew 安装：
 
@@ -50,6 +59,7 @@ npm run dev
 | R | 回到起点 |
 | H | 显示 / 隐藏操作说明 |
 | M | 静音 |
+| Y | 打开试听板（挑选音效） |
 | \`（Esc 下面的键）或 F1 | 调试叠加层（碰撞盒、速度、计时条、跳跃轨迹、网格） |
 | T 或 F2 | 调参面板（可以"复制参数 JSON"发给 Claude） |
 | G 或 F4 | 慢放 1 → ½ → ¼ |
@@ -57,7 +67,7 @@ npm run dev
 
 其他页面：
 
-- 试听板：<http://localhost:5173/?scene=soundboard>，逐个试听音效候选并选定，选择会立即用在练习场。
+- 试听板：在练习场里按 Y，或打开 <http://localhost:5173/#soundboard>，逐个试听音效候选并选定，选择会立即用在练习场。
 - 指定预设或站点：`?preset=B`、`?station=3`。
 - 对比渲染方式：`?render=round`（取整像素；默认是平滑像素）。
 
@@ -67,6 +77,7 @@ npm run dev
 |---|---|
 | `npm run dev` | 开发服务器（改代码后浏览器自动刷新） |
 | `npm run build` | 类型检查 + 打包到 `dist/` |
+| `npm run build:artifact` | 生成在线试玩页要发布的文件（`dist-artifact/page/`） |
 | `npm run preview` | 预览打包结果 |
 | `npm run typecheck` | 只做类型检查 |
 | `npm test` | 单元测试（物理、手感规则、关卡校验） |
