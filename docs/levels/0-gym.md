@@ -109,54 +109,45 @@ M0 的界面文字（预设标签、站点提示、操作说明、调试信息�
 6. **长坠落**：从塔顶往右跳下去，感受最大下落速度、重落地和镜头跟随。
 7. **楼梯**：一级一级小跳上去再下来，试试轻点跳。
 
-## 6. 新系统与代码清单
+## 6. 新系统与代码清单（已实现）
 
-- **工程**：`package.json`（`dev` / `build` / `preview` / `typecheck` / `test` / `test:e2e` / `format`）、`tsconfig.json`、`vite.config.ts`、`index.html`、`.prettierrc`、`.github/workflows/ci.yml`
+- **工程**：`package.json`（`dev` / `build` / `preview` / `typecheck` / `test` / `test:e2e` / `format`）、`tsconfig.json`、`vite.config.ts`、`playwright.config.ts`、`index.html`、`.prettierrc`
 - **`src/sim/`**（纯逻辑，不引用 Phaser）：
   - `tuning.ts`：参数类型、A/B/C 预设、由跳跃高度推导重力和起跳速度
   - `input.ts`：输入帧（按住、本步按下、本步松开）
   - `grid.ts`：碰撞网格（空、实心、单向平台）
-  - `actor.ts`：整数坐标 + 亚像素余量的逐像素移动
-  - `player.ts`：主角控制器和状态
-  - `camera.ts`：镜头逻辑（前瞻、死区、平台吸附、窥视、边界）
-  - `events.ts`：事件队列
-  - `world.ts`：把以上组合起来，每步 `step(input)`
-  - `level.ts`：ASCII 地图解析
+  - `body.ts`：整数坐标 + 亚像素余量的逐像素移动（Actor）
+  - `player.ts`：主角控制器（全部手感规则）
+  - `camera.ts`：镜头逻辑（前瞻、死区、平台吸附、窥视、边界、硬约束）
+  - `events.ts`：事件类型
+  - `world.ts`：组合以上模块，每步 `step(input)`；掉坑后回到安全地面
+  - `level.ts`：ASCII 地图解析与通用图例
+  - `math.ts`：`approach`、临界阻尼平滑等
 - **`src/view/`**：
   - `heroView.ts`：选帧、挤压拉伸、转身、眨眼、脚步同步
-  - `ribbon.ts`：帽带链式物理
-  - `terrainView.ts`：自动拼接瓦片渲染
-  - `background.ts`：视差背景
-  - `particles.ts`：尘土等粒子，带对象池
+  - `ribbon.ts`：帽带链式物理（Verlet）
+  - `textures.ts`：生成精灵图集与瓦片集贴图（瓦片外扩 1px 防接缝）
+  - `backgroundView.ts`：视差背景
+  - `particles.ts`：粒子（对象池、帧动画）
   - `shake.ts`：创伤值震动
+  - `spring.ts`：阻尼弹簧
   - `juice.ts`：把 sim 事件映射成粒子、震动和音效
 - **`src/art/`**：
   - `palette.ts`：32 色调色板
-  - `sprite.ts`：字符网格、部件拼合
-  - `hero.ts`、`gymTiles.ts`、`props.ts`（牌子、数字）、`fx.ts`（粒子贴图）
-  - `autotile.ts`：47 种连接形状
-  - `atlas.ts`：生成图集并注册到 Phaser
-  - `backgrounds.ts`
-- **`src/audio/`**：
-  - `engine.ts`：AudioContext、总线、首次按键解锁
-  - `sfx.ts`：每个音效槽位的 ZzFX 候选参数
-  - `soundboard.ts`：试听板页面
-- **`src/platform/`**：
-  - `display.ts`：整数倍缩放、Retina、信箱区
-  - `input/`：键盘和手柄转成输入帧，步与步之间的按键不丢
-- **`src/ui/dom/`**：HUD（预设标签、开关状态）、站点提示、操作说明、提示消息
-- **`src/debug/`**：叠加层、调参面板（lil-gui）、时间控制（慢放、暂停、逐帧）、按键显示
-- **`src/scenes/`**：`BootScene.ts`（生成纹理、等字体）、`GymScene.ts`
-- **`src/content/levels/gym.ts`**：练习场地图
-- **`tests/`**：
-  - `actor.test.ts`：碰撞、单向平台
-  - `player.test.ts`：跳跃高度、土狼时间、跳跃缓冲、撞头修正、边缘辅助、下穿、可变跳、确定性
-  - `level.test.ts`：地图解析与校验
-  - `purity.test.ts`：`src/sim` 不引用 Phaser
-- **`e2e/smoke.spec.ts`**：启动无报错、能移动、截图
-- **`scripts/`**：
-  - `preview-art.ts`：把精灵和瓦片渲染成放大 PNG，供自检
-  - `analyze-sfx.ts`：测量音效的时长、峰值、RMS、音高走向
+  - `sprite.ts`：字符网格、部件拼合、光栅化
+  - `hero.ts`、`props.ts`（牌子、数字）、`fx.ts`（粒子贴图）、`sheets.ts`
+  - `terrain.ts`：按颜色规则生成 47 种连接形状的地形瓦片，以及单向木板
+  - `background.ts`：天空渐变（有序抖动）、山丘、云层
+  - `rng.ts`：带种子的随机数与坐标哈希
+- **`src/audio/`**：`zzfx.ts`（ZzFX 合成器移植）、`sfx.ts`（槽位与候选）、`engine.ts`（AudioContext、总线、首次按键解锁、同时最多 4 个实例）、`soundboard.ts`（试听板）
+- **`src/platform/`**：`display.ts`（整数倍缩放、Retina、信箱区）、`input.ts`（键盘和手柄转成输入帧）
+- **`src/ui/`**：`motion.ts`（动效令牌）、`dom/gymUI.ts` + `dom/ui.css`（预设标签、站点提示、操作说明、调试信息、按键显示、暂停条）
+- **`src/debug/`**：`overlay.ts`（碰撞盒、速度、轨迹、修正标记、网格）、`tuningPanel.ts`（lil-gui）
+- **`src/scenes/`**：`BootScene.ts`（生成图集、等字体）、`GymScene.ts`（固定步长主循环、渲染插值、调试键）
+- **`src/content/levels/gym.ts`**：练习场地图与站点
+- **`tests/`**：`player.test.ts`（跳跃高度、加减速、急停、土狼时间、跳跃缓冲、撞头修正、边缘辅助、单向平台、掉坑复活、重落地、确定性）、`level.test.ts`（解析与练习场校验）、`purity.test.ts`（`src/sim` 不引用 Phaser/DOM）
+- **`e2e/smoke.spec.ts`**：启动无报错、能移动、能跳、叠加层与说明面板、试听板
+- **`scripts/`**：`preview-art.ts`（精灵放大预览）、`preview-scene.ts`（不开浏览器拼一张场景图）、`jump-metrics.ts`（跳跃度量）、`analyze-sfx.ts`（音效分析）、`png.ts`（最小 PNG 编码器）
 
 ## 7. 美术需求
 

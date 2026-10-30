@@ -1,0 +1,36 @@
+{
+  "name": "pixel-isle",
+  "private": true,
+  "version": "0.1.0",
+  "description": "《四时铃》——在浏览器里玩的原创像素风横版平台跳跃游戏",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "format": "prettier --write .",
+    "preview-art": "tsx scripts/preview-art.ts",
+    "analyze-sfx": "tsx scripts/analyze-sfx.ts"
+  },
+  "dependencies": {
+    "@fontsource/fusion-pixel-12px-proportional-sc": "^5.3.0",
+    "lil-gui": "^0.21.0",
+    "phaser": "4.2.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.19.2",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}

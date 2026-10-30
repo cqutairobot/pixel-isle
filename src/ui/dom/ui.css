@@ -1,0 +1,210 @@
+/* 练习场的 DOM 叠加界面。尺寸都以"游戏像素"为单位：--px = 一个游戏像素占多少 CSS 像素。 */
+#ui-root {
+  --px: 2px;
+  --ink: #1a1c2c;
+  --night: #2b2f4f;
+  --slate: #44506e;
+  --mist: #a3b2cc;
+  --cloud: #dfe7f2;
+  --cream: #fff4d6;
+  --gold: #ffc93c;
+  --red: #ff5a4f;
+  --teal: #2fb0b8;
+  --back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --out: cubic-bezier(0.33, 1, 0.68, 1);
+  position: fixed;
+  overflow: hidden;
+  pointer-events: none;
+  font-family: 'Fusion Pixel 12px Proportional SC', monospace;
+  font-size: calc(var(--px) * 12);
+  line-height: calc(var(--px) * 14);
+  color: var(--ink);
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  user-select: none;
+}
+
+#ui-root .panel {
+  background: var(--cream);
+  box-shadow:
+    0 0 0 var(--px) var(--ink),
+    0 calc(var(--px) * 2) 0 var(--px) rgba(26, 28, 44, 0.35);
+  padding: calc(var(--px) * 3) calc(var(--px) * 5);
+}
+
+/* 左上角：当前预设与开关 */
+#ui-root .hud {
+  position: absolute;
+  left: calc(var(--px) * 6);
+  top: calc(var(--px) * 6);
+  display: flex;
+  gap: calc(var(--px) * 4);
+}
+#ui-root .badge {
+  background: var(--cream);
+  box-shadow: 0 0 0 var(--px) var(--ink);
+  padding: 0 calc(var(--px) * 4);
+  transition: transform 150ms var(--back);
+}
+#ui-root .badge b {
+  color: var(--red);
+  font-weight: normal;
+}
+#ui-root .badge.pop {
+  animation: pop 260ms var(--back);
+}
+@keyframes pop {
+  0% {
+    transform: scale(0.7);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 顶部中间：站点提示 */
+#ui-root .station {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--px) * 30);
+  width: calc(var(--px) * 300);
+  transform: translate(-50%, calc(var(--px) * -10));
+  opacity: 0;
+  transition:
+    transform 250ms var(--back),
+    opacity 150ms var(--out);
+  text-align: center;
+}
+#ui-root .station.show {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+#ui-root .station .title {
+  color: var(--red);
+}
+
+/* 底部中间：短提示 */
+#ui-root .toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--px) * 10);
+  transform: translate(-50%, calc(var(--px) * 8));
+  opacity: 0;
+  transition:
+    transform 250ms var(--back),
+    opacity 150ms var(--out);
+  white-space: nowrap;
+}
+#ui-root .toast.show {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+/* 右下角：小提示 */
+#ui-root .hint {
+  position: absolute;
+  right: calc(var(--px) * 6);
+  bottom: calc(var(--px) * 5);
+  color: var(--cream);
+  text-shadow:
+    var(--px) 0 0 var(--ink),
+    calc(var(--px) * -1) 0 0 var(--ink),
+    0 var(--px) 0 var(--ink),
+    0 calc(var(--px) * -1) 0 var(--ink);
+}
+
+/* 操作说明 */
+#ui-root .help {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -46%) scale(0.92);
+  opacity: 0;
+  transition:
+    transform 250ms var(--back),
+    opacity 150ms var(--out);
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: calc(var(--px) * 16);
+}
+#ui-root .help.show {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+#ui-root .help h3 {
+  margin: 0 0 calc(var(--px) * 2);
+  font-size: inherit;
+  font-weight: normal;
+  color: var(--red);
+}
+#ui-root .help .row {
+  display: flex;
+  gap: calc(var(--px) * 6);
+}
+#ui-root .help .k {
+  min-width: calc(var(--px) * 92);
+  color: var(--slate);
+}
+
+/* 右上角：调试信息 */
+#ui-root .debug {
+  position: absolute;
+  right: calc(var(--px) * 6);
+  top: calc(var(--px) * 6);
+  background: rgba(26, 28, 44, 0.82);
+  color: var(--cloud);
+  padding: calc(var(--px) * 2) calc(var(--px) * 4);
+  white-space: pre;
+  display: none;
+}
+#ui-root .debug.show {
+  display: block;
+}
+#ui-root .debug .bar {
+  display: inline-block;
+  height: calc(var(--px) * 4);
+  background: var(--gold);
+  vertical-align: middle;
+}
+
+/* 左下角：按键显示 */
+#ui-root .keys {
+  position: absolute;
+  left: calc(var(--px) * 6);
+  bottom: calc(var(--px) * 6);
+  display: none;
+  gap: calc(var(--px) * 2);
+}
+#ui-root .keys.show {
+  display: flex;
+}
+#ui-root .key {
+  min-width: calc(var(--px) * 12);
+  text-align: center;
+  background: var(--slate);
+  color: var(--cloud);
+  box-shadow: 0 0 0 var(--px) var(--ink);
+  padding: 0 calc(var(--px) * 2);
+  transition: transform 80ms var(--out);
+}
+#ui-root .key.on {
+  background: var(--gold);
+  color: var(--ink);
+  transform: translateY(var(--px));
+}
+
+/* 暂停条 */
+#ui-root .pause {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--px) * 6);
+  transform: translate(-50%, calc(var(--px) * -40));
+  opacity: 0;
+  transition:
+    transform 250ms var(--back),
+    opacity 150ms var(--out);
+}
+#ui-root .pause.show {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
