@@ -103,6 +103,16 @@ function puff(r: number): RGBAImage {
   return p.toImage();
 }
 
+/** 风铃响时飘起的音符（♪），颜色和风铃对应 */
+function note(c: ColorName): RGBAImage {
+  const p = new Paint(7, 9);
+  p.vline(4, 0, 6, c);
+  p.set(5, 1, c).set(6, 2, c).set(6, 3, c);
+  p.ellipse(2.5, 6.8, 2, 1.5, c);
+  p.outline('night');
+  return p.toImage();
+}
+
 const frames: Record<string, RGBAImage> = {};
 [4, 8, 12, 16].forEach(
   (r, i) => (frames[`ring_${i}`] = ring(r, i < 2 ? 2 : 1, i < 2 ? 'cream' : 'gold')),
@@ -122,5 +132,7 @@ for (const [k, c, d] of leaves) for (let f = 0; f < 3; f++) frames[`leaf${k}_${f
 frames.petal_0 = petal(0);
 frames.petal_1 = petal(1);
 [2, 4, 5.5].forEach((r, i) => (frames[`puff_${i}`] = puff(r)));
+
+(['sky', 'leaf3', 'gold'] as const).forEach((c, i) => (frames[`note_${i}`] = note(c)));
 
 export const fx2Sheet: ImageSheet = { key: 'fx2', frames };

@@ -60,6 +60,10 @@ export class EntityViews {
   private gateSwing = 0;
   private waved = new Set<string>();
   private waveT = new Map<string, number>();
+  private emotes: Array<{ who: string; img: Phaser.GameObjects.Image; t: number; life: number }> =
+    [];
+  /** 对话、过场期间：不显示交谈提示"↑" */
+  storyMode = false;
 
   constructor(
     private scene: Phaser.Scene,
@@ -143,6 +147,45 @@ export class EntityViews {
   /** 让回回换个表情一会儿（开心、担心） */
   mood(face: 'happy' | 'worry', t = 0.8): void {
     this.huiMood = { face, t };
+  }
+
+  /** 某人头顶的位置（世界坐标）：'hero'、'huihui' 或 NPC 编号 */
+  headOf(who: string): { x: number; y: number } | null {
+    if (who === 'hero' || who === 'xiaoman') {
+      const b = this.world.player.body;
+      return { x: b.centerX, y: b.y - 2 };
+    }
+    if (who === 'huihui') return this.huihuiPos;
+    return this.npcTop(who);
+  }
+
+  /** 头顶冒一个表情气泡（！？♪ …），弹出后停一会儿再消失 */
+  emote(who: string, kind: 'bang' | 'q' | 'note' | 'dots', life = 1.1): void {
+    for (const e of this.emotes.filter((q) => q.who === who)) e.t = Math.max(e.t, e.life - 0.08);
+    const img = this.scene.add
+      .image(0, 0, ATLAS, `ui/emote_${kind}`)
+      .setOrigin(0.5, 1)
+      .setDepth(15)
+      .setScale(0);
+    this.emotes.push({ who, img, t: 0, life });
+  }
+
+  private updateEmotes(dt: number): void {
+    this.emotes = this.emotes.filter((e) => {
+      e.t += dt;
+      const at = this.headOf(e.who);
+      if (!at || e.t >= e.life) {
+        e.img.destroy();
+        return false;
+      }
+      const k = Math.min(1, e.t / 0.16);
+      const pop = k < 1 ? 1 + Math.sin(k * Math.PI) * 0.35 : 1;
+      const out = e.life - e.t < 0.12 ? (e.life - e.t) / 0.12 : 1;
+      e.img
+        .setScale(k * pop * out)
+        .setPosition(Math.round(at.x), Math.round(at.y - 3 - (Math.floor(e.t * 4) % 2)));
+      return true;
+    });
   }
 
   onEvents(events: readonly SimEvent[]): void {
@@ -317,6 +360,7 @@ export class EntityViews {
       img.setRotation(s.update(dt));
     });
     this.updateHuihui(dt, p.body.centerX, p.body.y, p.facing);
+    this.updateEmotes(dt);
   }
 
   private updateFreed(dt: number): void {
@@ -389,7 +433,7 @@ export class EntityViews {
       }
       img.setFrame(frame);
     }
-    const t: Npc | null = this.world.talkTarget;
+    const t: Npc | null = this.storyMode ? null : this.world.talkTarget;
     if (t) {
       const h = NPC_FRAMES[t.id]?.h ?? 20;
       this.prompt

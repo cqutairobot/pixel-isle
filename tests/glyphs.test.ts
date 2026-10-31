@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { readWoff } from '../scripts/lib/woff';
 import { allText } from '../src/content/allText';
+import {
+  ADOU_SOLVED,
+  BAILU_MEET,
+  BELLTOWER,
+  INTRO,
+  NPC_TALK,
+  PROLOGUE,
+} from '../src/content/dialog/1-1';
 import { HINTS, KEY_HINTS, UI_TEXT } from '../src/content/text';
+import { DIALOG_MAX_LINES, DIALOG_TEXT_W, NARRATOR_TEXT_W } from '../src/ui/dialogBox';
 import { parseRich, plainText, wrapChars } from '../src/ui/text/layout';
 
 const FONT =
@@ -41,6 +50,22 @@ describe('文本不超出文本框', () => {
     for (const t of Object.values(KEY_HINTS)) expect(lines(t, 220), t).toBe(1);
     for (const k of ['checkpoint', 'glassFound', 'glassAgain', 'sunFruit', 'tallyTitle'] as const)
       expect(lines(UI_TEXT[k], 200), k).toBe(1);
+  });
+
+  it(`对话框：每句最多 ${DIALOG_MAX_LINES} 行`, () => {
+    const all = [
+      ...Object.values(NPC_TALK).flatMap((n) => [...n.first, ...n.again, ...(n.after ?? [])]),
+      ...INTRO,
+      ...BELLTOWER.flat(),
+      ...BAILU_MEET,
+      ...PROLOGUE.flat(),
+    ];
+    for (const l of all) {
+      const w = l.who === 'narrator' ? NARRATOR_TEXT_W : DIALOG_TEXT_W;
+      expect(lines(l.text, w), l.text).toBeLessThanOrEqual(DIALOG_MAX_LINES);
+    }
+    // 阿豆解开风铃时说的话用提示气泡（宽 150）
+    for (const l of ADOU_SOLVED) expect(lines(l.text, 150), l.text).toBeLessThanOrEqual(3);
   });
 
   it('"制作中"卡片最多 2 行（宽 280）', () => {

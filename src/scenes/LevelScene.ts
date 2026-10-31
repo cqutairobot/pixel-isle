@@ -2,12 +2,20 @@ import Phaser from 'phaser';
 import { audio } from '../audio/engine';
 import { END_STATES } from '../content/cutscenes/endStates';
 import { ADOU_SOLVED, BAILU_MEET, BELLTOWER, NPC_TALK } from '../content/dialog/1-1';
+import type { Line } from '../content/dialog/line';
 import { LEVELS } from '../content/levels';
 import { HINTS, UI_TEXT } from '../content/text';
 import { DebugOverlay } from '../debug/overlay';
 import { currentLayout, VIEW_H, VIEW_W, type Layout } from '../platform/display';
 import { InputDevices } from '../platform/input';
-import { loadSave, recordClear, recordGlass, writeSave, type SaveData } from '../platform/save';
+import {
+  loadSave,
+  recordClear,
+  recordGlass,
+  setFlag,
+  writeSave,
+  type SaveData,
+} from '../platform/save';
 import type { SimEvent } from '../sim/events';
 import { BTN, EMPTY_INPUT, type InputFrame } from '../sim/input';
 import { parseLevel, standAt, type ParsedLevel } from '../sim/level';
@@ -60,7 +68,11 @@ export class LevelScene extends Phaser.Scene {
   private lastInput: InputFrame = EMPTY_INPUT;
   private hintsShown = new Set<string>();
   private bubbleAt: (() => { x: number; y: number } | null) | null = null;
-  private talked = new Set<string>();
+  /** 排队等着显示的提示气泡（不打断游戏，一条一条来） */
+  private sayQueue: Array<{ text: string; at: () => { x: number; y: number } | null; t: number }> =
+    [];
+  /** 正在进行的对话或过场 */
+  private story: string | null = null;
   private keyDone = { moved: 0, jumps: 0 };
   private death: { t: number; x: number; y: number; vy: number; dy: number } | null = null;
   private clearT = -1;
@@ -77,7 +89,8 @@ export class LevelScene extends Phaser.Scene {
   init(data: LevelSceneData): void {
     this.levelId = data.levelId && LEVELS[data.levelId] ? data.levelId : '1-1';
     this.hintsShown = new Set();
-    this.talked = new Set();
+    this.sayQueue = [];
+    this.story = null;
     this.keyDone = { moved: 0, jumps: 0 };
     this.death = null;
     this.clearT = -1;
@@ -141,7 +154,7 @@ export class LevelScene extends Phaser.Scene {
       window.removeEventListener('pointerdown', this.unlockAudio);
       document.removeEventListener('visibilitychange', this.onVisibility);
       this.devices.destroy();
-      this.ui.closeModal();
+      this.ui.closeAll();
       this.ui.bubble.hide();
       this.ui.setLevelUI(false);
     });
@@ -255,7 +268,7 @@ export class LevelScene extends Phaser.Scene {
     this.prev = { cx: w.camera.x, cy: w.camera.y };
     const input = this.devices.sample();
     this.lastInput = input;
-    if (w.waiting) this.resolveWaiting();
+    if (w.waiting && !this.story) this.beginStory();
     if (input.pressed & BTN.attack && w.state === 'play') this.hint('attack');
     w.step(input);
     this.juice.handle(w.events, w);
@@ -268,41 +281,73 @@ export class LevelScene extends Phaser.Scene {
     if (p.running) this.ui.keyHint.done('run');
   }
 
-  /**
-   * 世界在等过场或对话。M1-a 先用提示气泡代替完整的对话框与过场（M1-b 接上），
-   * 直接套用过场的结束状态，保证和以后的完整版结果一致。
-   */
-  private resolveWaiting(): void {
+  /** 世界在等对话或过场：开始播放，播完再让世界继续（结果和跳过、回放一致） */
+  private beginStory(): void {
     const w = this.world;
-    if (w.pendingTrigger === 'belltower') {
-      w.resolveTrigger(END_STATES.belltower);
-      const last = BELLTOWER[2]!.at(-1)!;
-      this.time.delayedCall(450, () => this.say(last.text, () => this.ents.huihuiPos));
-    } else if (w.pendingTrigger === 'bailu') {
-      w.resolveTrigger(END_STATES.bailu);
-      this.say(BAILU_MEET[4]!.text, () => this.ents.npcTop('bailu'));
-    } else if (w.pendingTrigger) {
-      w.resolveTrigger();
-    }
     if (w.pendingTalk) {
       const id = w.pendingTalk;
-      w.resolveTalk();
-      const talk = NPC_TALK[id];
-      if (talk) {
-        const lines =
-          id === 'adou' && w.flags.has('chimesSolved') ? (talk.after ?? talk.again) : talk.again;
-        const line = lines[0];
-        if (line) this.say(line.text, () => this.ents.npcTop(id));
-      }
-      this.talked.add(id);
+      this.story = `talk:${id}`;
       this.ui.keyHint.done('talk');
+      const lines = this.talkLines(id);
+      const done = () => this.endStory(() => w.resolveTalk());
+      if (lines.length) this.playDialog(lines, done);
+      else done();
+    } else if (w.pendingTrigger) {
+      const id = w.pendingTrigger;
+      this.story = id;
+      const lines = id === 'belltower' ? BELLTOWER.flat() : id === 'bailu' ? BAILU_MEET : [];
+      const done = () => this.endStory(() => w.resolveTrigger(END_STATES[id] ?? {}));
+      if (lines.length) this.playDialog(lines, done);
+      else done();
     }
   }
 
-  /** 显示一个跟着某人走的提示气泡 */
+  private endStory(resolve: () => void): void {
+    resolve();
+    // 关掉对话框的那一下按键不能让小满跳起来
+    this.devices.flush();
+    this.story = null;
+    this.ents.storyMode = false;
+  }
+
+  /** 和 NPC 交谈：第一次说 first（记进存档），之后说 again；阿豆在风铃解开后说 after */
+  private talkLines(id: string): readonly Line[] {
+    const talk = NPC_TALK[id];
+    if (!talk) return [];
+    if (id === 'adou' && this.world.flags.has('chimesSolved') && talk.after) return talk.after;
+    const flag = `talk:${id}`;
+    if (talk.first.length && !this.save.flags.includes(flag)) {
+      setFlag(this.save, flag);
+      writeSave(this.save);
+      return talk.first;
+    }
+    return talk.again;
+  }
+
+  private playDialog(lines: readonly Line[], onDone: () => void): void {
+    this.ents.storyMode = true;
+    this.ui.dialog(lines, {
+      anchor: (who) => this.screenAnchor(who),
+      voice: (pitch) => audio.play('voice', { rate: pitch, volume: 0.7 }),
+      sfx: (s) =>
+        s === 'page'
+          ? audio.play('page', { volume: 0.7 })
+          : audio.play('open', { volume: 0.5, rate: s === 'close' ? 0.8 : 1 }),
+      onDone,
+    });
+  }
+
+  /** 某人头顶在屏幕上的位置（对话框从这里弹出） */
+  private screenAnchor(who: string): { x: number; y: number } | null {
+    const at = this.ents.headOf(who);
+    if (!at) return null;
+    const cam = this.cameras.main;
+    return { x: at.x - cam.scrollX, y: at.y - cam.scrollY };
+  }
+
+  /** 排队显示一个跟着某人走的提示气泡 */
   private say(text: string, at: () => { x: number; y: number } | null): void {
-    this.bubbleAt = at;
-    this.ui.bubble.show(text);
+    this.sayQueue.push({ text, at, t: this.time.now });
   }
 
   /** 回回的提示（每条只出现一次）；回回还没出现时由小满头顶说 */
@@ -393,9 +438,10 @@ export class LevelScene extends Phaser.Scene {
           if (e.index === 2) this.time.delayedCall(900, () => this.hint('cp2'));
           break;
         case 'chimeSolved':
-          this.time.delayedCall(500, () =>
-            this.say(ADOU_SOLVED[1]!.text, () => this.ents.npcTop('adou')),
-          );
+          this.ents.emote('adou', 'note', 1.6);
+          this.time.delayedCall(700, () => {
+            for (const l of ADOU_SOLVED) this.say(l.text, () => this.ents.npcTop('adou'));
+          });
           break;
         case 'clear':
           this.clearT = 0;
@@ -488,7 +534,7 @@ export class LevelScene extends Phaser.Scene {
   override update(_time: number, deltaMs: number): void {
     const uiIn = this.devices.sampleUI();
     if (this.ui.modal) {
-      this.ui.modal.input(uiIn.pressed);
+      this.ui.modal.input(uiIn.pressed, uiIn.held);
     } else if (uiIn.pressed & BTN.start && this.clearT < 0) {
       this.setPaused(!this.loop.paused);
     } else if (this.pause && uiIn.pressed & BTN.cancel) {
@@ -544,6 +590,14 @@ export class LevelScene extends Phaser.Scene {
     this.bg.update(dt, cx, cy);
     this.view.update(dt);
     this.overlay.draw(dt, w, lerp(b.px, b.x, alpha), lerp(b.py, b.y, alpha), cx, cy, this.layout.k);
+    // 提示气泡：一条一条显示，对话和过场期间先等着；等太久的就不显示了
+    const q = this.sayQueue;
+    while (q.length && this.time.now - q[0]!.t > 6000) q.shift();
+    if (q.length && !this.story && !this.ui.modal && !this.ui.bubble.busy) {
+      const next = q.shift()!;
+      this.bubbleAt = next.at;
+      this.ui.bubble.show(next.text);
+    }
     // 气泡跟着说话的人
     const at = this.bubbleAt?.();
     this.ui.bubble.update(dt, (at?.x ?? hx) - cx, (at?.y ?? hy - 20) - cy);

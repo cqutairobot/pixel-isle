@@ -338,11 +338,43 @@ export class Juice {
             life: 0.3,
             frames: ['fx2/sparkle_1', 'fx2/sparkle_0'],
           });
+          // 飘起一个和风铃同色的音符
+          this.particles.spawn({
+            x: e.x + rnd(-3, 3),
+            y: e.y - 6,
+            vx: rnd(-12, 12),
+            vy: -34,
+            drag: 0.6,
+            life: 0.9,
+            frames: [`fx2/note_${e.index}`],
+            fade: true,
+            depth: 21,
+          });
           break;
-        case 'chimeSolved':
-          this.time(0.25, () => this.sound.play('glass', { pan: this.pan(e.x) }));
-          this.ring(e.x, e.y, ['fx2/sparkle_2', 'fx2/sparkle_1', 'fx2/sparkle_0'], 10, 100);
+        case 'chimeSolved': {
+          // 早安歌：把"大、小、中、大"再奏一遍，音符一个个飘起来
+          const x = e.x;
+          const y = e.y;
+          [0, 2, 1, 0].forEach((k, i) =>
+            this.time(0.18 + i * 0.16, () => {
+              this.sound.play('chime', { rate: CHIME_RATES[k] ?? 1, pan: this.pan(x) });
+              this.particles.spawn({
+                x: x - 18 + i * 12,
+                y: y - 2,
+                vx: rnd(-6, 6),
+                vy: -40,
+                drag: 0.5,
+                life: 1.2,
+                frames: [`fx2/note_${k}`],
+                fade: true,
+                depth: 21,
+              });
+            }),
+          );
+          this.sound.play('pop', { pan: this.pan(x) });
+          this.ring(x, y, ['fx2/sparkle_2', 'fx2/sparkle_1', 'fx2/sparkle_0'], 10, 100);
           break;
+        }
         case 'clear':
           this.sound.play('clear');
           for (let i = 0; i < 26; i++) {

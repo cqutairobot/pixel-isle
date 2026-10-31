@@ -1,5 +1,6 @@
 import { allDialogText } from './dialog/1-1';
 import { LEVELS } from './levels';
+import { speakerNames } from './speakers';
 import { HINTS, KEY_HINTS, UI_TEXT } from './text';
 
 /** 可打印的 ASCII（数字、字母、常用符号），按键提示和数字都会用到 */
@@ -16,6 +17,7 @@ export function allText(): string[] {
     ...Object.values(HINTS),
     ...Object.values(LEVELS).map((l) => l.name),
     ...allDialogText(),
+    ...speakerNames(),
     ASCII,
     SYMBOLS,
   ];

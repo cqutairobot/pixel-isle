@@ -7,6 +7,7 @@ import { heroSheet } from './hero';
 import { itemSheet } from './items';
 import { npcSheet } from './npcs';
 import type { ImageSheet } from './paint';
+import { portraitSheet } from './portraits';
 import { propSheet } from './props';
 import { uiSheet } from './ui';
 import { waterSheet } from './water';
@@ -23,6 +24,7 @@ export const allImageSheets: ImageSheet[] = [
   npcSheet,
   decoSheet,
   uiSheet,
+  portraitSheet,
 ];
 
 /** 全部帧：名字形如 hero/run_3 */

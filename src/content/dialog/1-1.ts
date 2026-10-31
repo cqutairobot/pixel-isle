@@ -1,15 +1,10 @@
-/**
- * 第 1 关的对白（docs/levels/1-1.md §4）。说话人见 src/content/speakers.ts。
- * 文字标签：{color=gold}…{/color}、{wave}…{/wave}、{shake}…{/shake}、{pause=毫秒}。
- */
+import type { Line } from './line';
 
-export interface Line {
-  /** 说话人编号；'narrator' 是旁白（居中、没有头像） */
-  who: string;
-  text: string;
-  /** 头像表情（不写就是普通） */
-  face?: string;
-}
+export type { Line };
+
+/**
+ * 第 1 关的对白（docs/levels/1-1.md §4）。说话人见 src/content/speakers.ts，文字标签见 ./line.ts。
+ */
 
 /** NPC 交谈：第一次 / 之后再交谈 / 特殊状态 */
 export const NPC_TALK: Record<string, { first: Line[]; again: Line[]; after?: Line[] }> = {

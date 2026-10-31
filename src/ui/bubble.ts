@@ -20,6 +20,11 @@ export class Bubble {
   active = false;
   onType?: () => void;
 
+  /** 正在显示或正在收起（排队的下一条要等它） */
+  get busy(): boolean {
+    return this.active || this.root.visible;
+  }
+
   constructor(private scene: Phaser.Scene) {
     this.root = scene.add.container(0, 0).setDepth(15).setVisible(false);
     this.tail = scene.add.graphics();
