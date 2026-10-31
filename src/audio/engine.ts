@@ -1,3 +1,5 @@
+import type { AmbienceId } from './music/ambience';
+import { MusicPlayer, renderInBackground } from './music/player';
 import { DEFAULT_CHOICES, SFX, SFX_IDS, type SfxId } from './sfx';
 import { normalize, ZZFX_SAMPLE_RATE, zzfxSamples } from './zzfx';
 
@@ -25,7 +27,55 @@ function loadJSON<T>(key: string, fallback: T): T {
 }
 
 /**
- * 音频引擎：一个 AudioContext、总音量与音效总线。
+ * 音乐的门面：解锁音频之前的调用先记下来（想放哪首、环境声），解锁后再交给播放器。
+ */
+export class MusicControl {
+  player: MusicPlayer | null = null;
+  private want: string | null = null;
+  private wantAmb: AmbienceId | null = null;
+  private prefetched: string[] = [];
+
+  attach(p: MusicPlayer): void {
+    this.player = p;
+    p.prefetch(...this.prefetched);
+    if (this.want) p.play(this.want, 1.2);
+    if (this.wantAmb) p.ambience(this.wantAmb);
+  }
+
+  play(id: string | null, fade?: number): void {
+    this.want = id;
+    // 还没解锁也先开始渲染，玩家按下第一个键时多半已经好了
+    if (id && !this.player) void renderInBackground(id);
+    this.player?.play(id, fade);
+  }
+
+  ambience(id: AmbienceId | null): void {
+    this.wantAmb = id;
+    if (id && !this.player) void renderInBackground(id);
+    this.player?.ambience(id);
+  }
+
+  jingle(id: string, mode: 'duck' | 'interrupt' | 'end'): void {
+    this.player?.jingle(id, mode);
+  }
+
+  setTalking(on: boolean): void {
+    this.player?.setTalking(on);
+  }
+
+  setPaused(on: boolean): void {
+    this.player?.setPaused(on);
+  }
+
+  prefetch(...ids: string[]): void {
+    this.prefetched.push(...ids);
+    for (const id of ids) void renderInBackground(id);
+    this.player?.prefetch(...ids);
+  }
+}
+
+/**
+ * 音频引擎：一个 AudioContext、总音量、音效总线和音乐播放器。
  * 浏览器要求用户操作后才能出声，所以第一次按键时调用 unlock()。
  */
 export class AudioEngine {
@@ -35,7 +85,8 @@ export class AudioEngine {
   private buffers = new Map<string, AudioBuffer>();
   private voices = new Map<string, number>();
   choices: Record<SfxId, number> = loadJSON(CHOICES_KEY, { ...DEFAULT_CHOICES });
-  settings = loadJSON(SETTINGS_KEY, { muted: false, volume: 0.8 });
+  settings = loadJSON(SETTINGS_KEY, { muted: false, volume: 0.8, music: 0.7, sfx: 1 });
+  readonly music = new MusicControl();
 
   get unlocked(): boolean {
     return this.ctx !== null && this.ctx.state === 'running';
@@ -48,6 +99,7 @@ export class AudioEngine {
       this.sfxBus = this.ctx.createGain();
       this.sfxBus.connect(this.master);
       this.master.connect(this.ctx.destination);
+      this.music.attach(new MusicPlayer(this.ctx, this.master));
       this.applyVolume();
     }
     if (this.ctx.state !== 'running') void this.ctx.resume();
@@ -55,6 +107,15 @@ export class AudioEngine {
 
   private applyVolume(): void {
     if (this.master) this.master.gain.value = this.settings.muted ? 0 : this.settings.volume;
+    if (this.sfxBus) this.sfxBus.gain.value = this.settings.sfx;
+    if (this.music.player) this.music.player.bus.gain.value = this.settings.music;
+  }
+
+  /** 总音量、音乐、音效（0–1） */
+  setVolumes(v: { volume?: number; music?: number; sfx?: number }): void {
+    Object.assign(this.settings, v);
+    this.applyVolume();
+    this.save(SETTINGS_KEY, this.settings);
   }
 
   setMuted(muted: boolean): void {
@@ -118,3 +179,6 @@ export class AudioEngine {
 }
 
 export const audio = new AudioEngine();
+
+// 调试与浏览器测试用
+if (typeof window !== 'undefined') (window as unknown as { __audio: AudioEngine }).__audio = audio;

@@ -190,6 +190,8 @@ export class LevelScene extends Phaser.Scene {
     this.hero.resetRibbon(this.world.player.body.centerX, this.world.player.body.bottom);
     (window as unknown as { __level: unknown }).__level = this;
     if (this.mode === 'prologue') {
+      audio.music.play('night', 2);
+      audio.music.ambience('wind');
       this.setupNight();
       this.playCutscene('prologue', () => {
         setFlag(this.save, 'prologueSeen');
@@ -199,6 +201,8 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
     this.cameras.main.fadeIn(500, ...FADE);
+    audio.music.play(this.level.music ?? 'beach', 1.5);
+    audio.music.ambience('sea');
     if (!cp && data.intro !== false && CUTSCENES.intro) {
       this.playCutscene('intro', () => {
         this.ui.cinema.banner(UI_TEXT.chapter, UI_TEXT.levelTitle);
@@ -294,6 +298,7 @@ export class LevelScene extends Phaser.Scene {
   private setPaused(on: boolean): void {
     this.loop.paused = on;
     this.loop.reset();
+    audio.music.setPaused(on);
     audio.play('open', { volume: 0.6, rate: on ? 1 : 0.85 });
     if (on && !this.pause) {
       const ui = this.ui;
@@ -504,8 +509,11 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  /** 音乐（步骤 3 接上音乐系统） */
-  private playMusic(_id: string | null): void {}
+  /** 过场里换音乐：音乐停下时只留风声 */
+  private playMusic(id: string | null): void {
+    audio.music.play(id, id ? 1.2 : 1.5);
+    if (this.mode === 'play') audio.music.ambience(id ? 'sea' : 'wind');
+  }
 
   private dialogSounds(): DirectorHost['dialog'] {
     return {
@@ -594,6 +602,7 @@ export class LevelScene extends Phaser.Scene {
           hud.setShells(w.stats.shells);
           if (e.kind === 'glass' && e.glass !== undefined && e.glass >= 0) {
             if (!e.ghost) {
+              audio.music.jingle('glass', 'duck');
               recordGlass(this.save, this.levelId, e.glass);
               writeSave(this.save);
               this.ui.toast.show(`${UI_TEXT.glassFound} ${'①②③'[e.glass]}`);
@@ -621,7 +630,11 @@ export class LevelScene extends Phaser.Scene {
         case 'fellOut':
           this.cameras.main.fadeOut(160, ...FADE);
           break;
+        case 'sun':
+          audio.music.play(e.on ? 'sun' : (this.level.music ?? 'beach'), e.on ? 0.3 : 0.9);
+          break;
         case 'death':
+          audio.music.jingle('death', 'interrupt');
           this.death = { t: 0, x: e.x, y: e.y, vy: -230, dy: 0 };
           this.gray?.setActive(true);
           break;
@@ -637,6 +650,7 @@ export class LevelScene extends Phaser.Scene {
           }
           break;
         case 'checkpoint':
+          audio.music.jingle('checkpoint', 'duck');
           this.ui.toast.show(UI_TEXT.checkpoint);
           if (e.index === 2) this.time.delayedCall(900, () => this.hint('cp2'));
           break;
@@ -647,6 +661,7 @@ export class LevelScene extends Phaser.Scene {
           });
           break;
         case 'clear':
+          audio.music.jingle('clear', 'end');
           this.clearT = 0;
           this.ui.keyHint.done('move');
           this.hint('gate');
@@ -745,6 +760,7 @@ export class LevelScene extends Phaser.Scene {
       this.setPaused(false);
     }
     this.ui.keyHint.refresh(this.scheme());
+    audio.music.setTalking(!!this.story);
     const { alpha, dt } = this.loop.advance(deltaMs);
     this.renderFrame(dt, alpha);
   }
