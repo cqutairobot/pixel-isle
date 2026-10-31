@@ -5,11 +5,12 @@ import { END_STATES } from '../content/cutscenes/endStates';
 import { ADOU_SOLVED, NPC_TALK } from '../content/dialog/1-1';
 import type { Line } from '../content/dialog/line';
 import { LEVELS } from '../content/levels';
-import { HINTS, UI_TEXT } from '../content/text';
+import { HINTS, MENU_TEXT, UI_TEXT } from '../content/text';
 import { DebugOverlay } from '../debug/overlay';
 import { currentLayout, VIEW_H, VIEW_W, type Layout } from '../platform/display';
 import { InputDevices } from '../platform/input';
 import {
+  emptySave,
   loadSave,
   recordClear,
   recordGlass,
@@ -23,9 +24,11 @@ import { BTN, EMPTY_INPUT, type InputFrame } from '../sim/input';
 import { parseLevel, standAt, type ParsedLevel } from '../sim/level';
 import { cloneTuning, PRESETS } from '../sim/tuning';
 import { World } from '../sim/world';
-import { panelTexture } from '../ui/panel';
+import { settings, SHAKE_INTENSITY } from '../platform/settings';
+import { ConfirmBox, InfoCard } from '../ui/panelModal';
+import { PauseMenu } from '../ui/pauseMenu';
+import { SettingsPanel } from '../ui/settingsPanel';
 import { Tally, type TallySfx } from '../ui/tally';
-import { PixelText } from '../ui/text/pixelText';
 import { EntityViews } from '../view/entities';
 import { HeroView } from '../view/heroView';
 import { IslandBackground } from '../view/islandBackground';
@@ -97,7 +100,10 @@ export class LevelScene extends Phaser.Scene {
   private death: { t: number; x: number; y: number; vy: number; dy: number } | null = null;
   private clearT = -1;
   private gray: Phaser.Filters.ColorMatrix | null = null;
-  private pause: { root: Phaser.GameObjects.Container; texts: PixelText[] } | null = null;
+  private pauseMenu: PauseMenu | null = null;
+  private blur: Phaser.Filters.Blur | null = null;
+  /** 正在离开这个场景（转场中） */
+  private leaving = false;
   private startX = 0;
   private lastHx = 0;
   private lastHy = 0;
@@ -120,7 +126,8 @@ export class LevelScene extends Phaser.Scene {
     this.keyDone = { moved: 0, jumps: 0 };
     this.death = null;
     this.clearT = -1;
-    this.pause = null;
+    this.pauseMenu = null;
+    this.leaving = false;
     this.loop = new FixedStepLoop(() => this.simStep());
   }
 
@@ -130,7 +137,11 @@ export class LevelScene extends Phaser.Scene {
     this.world = new World(
       this.level,
       cloneTuning(PRESETS.A.tuning),
-      { autoRun: false, foundGlass: this.save.levels[this.levelId]?.glass ?? [] },
+      {
+        autoRun: settings.autoRun,
+        assist: settings.assist,
+        foundGlass: this.save.levels[this.levelId]?.glass ?? [],
+      },
       VIEW_W,
       VIEW_H,
     );
@@ -160,6 +171,9 @@ export class LevelScene extends Phaser.Scene {
     this.gray = this.cameras.main.filters.internal.addColorMatrix();
     this.gray.colorMatrix.grayscale(1);
     this.gray.setActive(false);
+    this.blur = this.cameras.main.filters.internal.addBlur(1, 1, 1, 1);
+    this.blur.setActive(false);
+    this.applySettings();
 
     this.ui = this.scene.get('ui') as UIScene;
     this.ui.setCover(0);
@@ -192,6 +206,7 @@ export class LevelScene extends Phaser.Scene {
     if (this.mode === 'prologue') {
       audio.music.play('night', 2);
       audio.music.ambience('wind');
+      void this.ui.transition.reveal(0.4);
       this.setupNight();
       this.playCutscene('prologue', () => {
         setFlag(this.save, 'prologueSeen');
@@ -200,11 +215,14 @@ export class LevelScene extends Phaser.Scene {
       });
       return;
     }
-    this.cameras.main.fadeIn(500, ...FADE);
+    if (this.ui.transition.covered) void this.ui.transition.reveal(0.7);
+    else this.cameras.main.fadeIn(500, ...FADE);
     audio.music.play(this.level.music ?? 'beach', 1.5);
     audio.music.ambience('sea');
     if (!cp && data.intro !== false && CUTSCENES.intro) {
       this.playCutscene('intro', () => {
+        setFlag(this.save, 'introSeen');
+        writeSave(this.save);
         this.ui.cinema.banner(UI_TEXT.chapter, UI_TEXT.levelTitle);
         this.time.delayedCall(2600, () => this.ui.keyHint.show('move', this.scheme()));
       });
@@ -270,8 +288,8 @@ export class LevelScene extends Phaser.Scene {
   private onKey = (e: KeyboardEvent): void => {
     this.unlockAudio();
     if (e.repeat) return;
-    if (this.pause && e.code === 'KeyR') {
-      this.scene.restart({ levelId: this.levelId });
+    if (this.pauseMenu && e.code === 'KeyR') {
+      this.restartLevel();
       return;
     }
     switch (e.code) {
@@ -295,42 +313,65 @@ export class LevelScene extends Phaser.Scene {
     }
   };
 
+  /** 设置面板改了：震屏强度、减少闪烁、自动奔跑立即生效（辅助模式下次进关生效） */
+  private applySettings(): void {
+    this.shake.intensity = SHAKE_INTENSITY[settings.shake];
+    this.hero.reduceFlash = settings.reduceFlash;
+    this.world.options.autoRun = settings.autoRun;
+  }
+
   private setPaused(on: boolean): void {
+    if (on === this.loop.paused) return;
     this.loop.paused = on;
     this.loop.reset();
     audio.music.setPaused(on);
-    audio.play('open', { volume: 0.6, rate: on ? 1 : 0.85 });
-    if (on && !this.pause) {
-      const ui = this.ui;
-      const root = ui.add.container(0, 0).setDepth(40);
-      root.add(ui.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x1a1c2c, 0.45).setOrigin(0, 0));
-      const w = 168;
-      const h = 46;
-      const x = (VIEW_W - w) / 2;
-      const y = (VIEW_H - h) / 2 - 10;
-      root.add(ui.add.image(x, y, panelTexture(ui, w, h)).setOrigin(0, 0));
-      const t1 = new PixelText(ui, 0, y + 8, UI_TEXT.paused, { color: 'red1' });
-      t1.setPosition(Math.round((VIEW_W - t1.width) / 2), y + 8);
-      const t2 = new PixelText(ui, 0, y + 25, UI_TEXT.pauseHint, { color: 'night' });
-      t2.setPosition(Math.round((VIEW_W - t2.width) / 2), y + 25);
-      root.add([t1.root, t2.root]);
-      root.y = -20;
-      root.setAlpha(0);
-      ui.tweens.add({ targets: root, y: 0, alpha: 1, duration: 180, ease: 'Back.Out' });
-      this.pause = { root, texts: [t1, t2] };
-    } else if (!on && this.pause) {
-      const p = this.pause;
-      this.pause = null;
-      this.ui.tweens.add({
-        targets: p.root,
-        alpha: 0,
-        duration: 120,
-        onComplete: () => {
-          for (const t of p.texts) t.destroy();
-          p.root.destroy();
+    this.blur?.setActive(on);
+    if (on && !this.pauseMenu) {
+      this.devices.releaseAll();
+      this.pauseMenu = new PauseMenu(this.ui.host, {
+        resume: () => {
+          this.pauseMenu = null;
+          this.setPaused(false);
         },
+        restart: () => {
+          this.pauseMenu = null;
+          this.restartLevel();
+        },
+        settings: () =>
+          this.ui.openModal(
+            new SettingsPanel(this.ui.host, {
+              open: (m) => this.ui.openModal(m),
+              changed: () => this.applySettings(),
+              cleared: () => (this.save = emptySave()),
+              toast: (t) => this.ui.toast.show(t),
+            }),
+          ),
+        toTitle: () =>
+          this.ui.openModal(
+            new ConfirmBox(this.ui.host, MENU_TEXT.toTitleConfirm, () => this.gotoTitle()),
+          ),
       });
+      this.ui.openModal(this.pauseMenu);
+    } else if (!on && this.pauseMenu) {
+      const m = this.pauseMenu;
+      this.pauseMenu = null;
+      if (!m.isClosing) m.close();
     }
+  }
+
+  /** 重新开始本关（不再播放开场） */
+  private restartLevel(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    void this.ui.transition
+      .run('fade', true, 0.3)
+      .then(() => this.scene.restart({ levelId: this.levelId, intro: false }));
+  }
+
+  private gotoTitle(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    void this.ui.transition.run('bell', true, 0.7).then(() => this.scene.start('title'));
   }
 
   private snapPrev(): void {
@@ -641,8 +682,16 @@ export class LevelScene extends Phaser.Scene {
         case 'respawn':
           this.snapPrev();
           this.hero.resetRibbon(w.player.body.centerX, w.player.body.bottom);
-          this.cameras.main.fadeIn(e.cause === 'death' ? 260 : 220, ...FADE);
+          if (e.cause !== 'death') this.cameras.main.fadeIn(220, ...FADE);
           if (e.cause === 'death') {
+            // 在检查点从小满的位置张开
+            this.time.delayedCall(30, () => {
+              const cam = this.cameras.main;
+              void this.ui.transition.run('iris', false, 0.4, {
+                x: w.player.body.centerX - cam.scrollX,
+                y: w.player.body.y - cam.scrollY,
+              });
+            });
             this.death = null;
             this.hero.override = null;
             this.gray?.setActive(false);
@@ -734,10 +783,20 @@ export class LevelScene extends Phaser.Scene {
         ghost: this.save.levels[this.levelId]?.glass.map((g, i) => g && !w.stats.glass[i]) ?? [],
         noDamage,
       },
-      [UI_TEXT.retry],
-      () => {
-        this.cameras.main.fadeOut(300, ...FADE);
-        this.time.delayedCall(320, () => this.scene.restart({ levelId: this.levelId }));
+      [UI_TEXT.next, UI_TEXT.retry],
+      (choice) => {
+        if (choice === 1) {
+          this.ui.closeAll();
+          this.restartLevel();
+          return;
+        }
+        // 继续：第 2 关还在做，先显示"制作中"，然后回到标题
+        this.ui.closeAll();
+        this.ui.openModal(
+          new InfoCard(this.ui.host, UI_TEXT.tallyTitle, [UI_TEXT.comingSoon], () =>
+            this.gotoTitle(),
+          ),
+        );
       },
       (s: TallySfx) =>
         audio.play(s === 'pop' ? 'glass' : s === 'move' ? 'ui' : s, {
@@ -754,10 +813,8 @@ export class LevelScene extends Phaser.Scene {
     this.updateSkip(Math.min(deltaMs, 100) / 1000, uiIn.held);
     if (this.ui.modal) {
       this.ui.modal.input(uiIn.pressed, uiIn.held);
-    } else if (uiIn.pressed & BTN.start && this.clearT < 0 && !this.story) {
-      this.setPaused(!this.loop.paused);
-    } else if (this.pause && uiIn.pressed & BTN.cancel) {
-      this.setPaused(false);
+    } else if (uiIn.pressed & BTN.start && this.clearT < 0 && !this.story && !this.leaving) {
+      this.setPaused(true);
     }
     this.ui.keyHint.refresh(this.scheme());
     audio.music.setTalking(!!this.story);
@@ -812,7 +869,12 @@ export class LevelScene extends Phaser.Scene {
         d.dy += d.vy * dt;
       }
       hy += d.dy;
-      if (d.t > 0.82 && d.t - dt <= 0.82) this.cameras.main.fadeOut(150, ...FADE);
+      // 倒下：以小满为中心的圆形收拢
+      if (d.t > 0.8 && d.t - dt <= 0.8)
+        void this.ui.transition.run('iris', true, 0.17, {
+          x: hx - this.cameras.main.scrollX,
+          y: hy - 8 - this.cameras.main.scrollY,
+        });
     } else if (this.clearT >= 0) {
       this.clearT += dt;
       if (p.onGround)

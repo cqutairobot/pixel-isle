@@ -130,6 +130,18 @@ function prompt(): RGBAImage {
 }
 
 /** 翻页箭头 ▼ */
+/** 菜单焦点：一只小铃铛（7×8） */
+function cursor(): RGBAImage {
+  const p = new Paint(7, 8);
+  p.set(3, 0, 'ochre');
+  p.ellipse(3.5, 3.2, 2.6, 2.4, 'gold');
+  p.rect(1, 3, 5, 3, 'gold');
+  p.hline(0, 6, 6, 'straw');
+  p.set(2, 2, 'cream').set(2, 3, 'cream');
+  p.set(3, 7, 'bark');
+  return p.toImage();
+}
+
 function pageArrow(): RGBAImage {
   const p = new Paint(7, 4);
   p.hline(0, 6, 0, 'night').hline(1, 5, 1, 'night').hline(2, 4, 2, 'night').set(3, 3, 'night');
@@ -186,6 +198,7 @@ const frames: Record<string, RGBAImage> = {
   glass_slot: glassSlot(),
   prompt: prompt(),
   page: pageArrow(),
+  cursor: cursor(),
   key_1: keycap(13),
   key_2: keycap(19),
   key_3: keycap(27),

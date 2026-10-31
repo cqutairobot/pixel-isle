@@ -16,12 +16,15 @@ export class DebugOverlay {
   visible = false;
 
   constructor(scene: Phaser.Scene) {
-    const tex = scene.textures.createCanvas('debug-grid', TILE, TILE)!;
-    const ctx = tex.getContext();
-    ctx.fillStyle = 'rgba(26,28,44,0.22)';
-    ctx.fillRect(0, 0, TILE, 1);
-    ctx.fillRect(0, 0, 1, TILE);
-    tex.refresh();
+    // 场景重新开始时贴图已经在了，直接复用
+    if (!scene.textures.exists('debug-grid')) {
+      const tex = scene.textures.createCanvas('debug-grid', TILE, TILE)!;
+      const ctx = tex.getContext();
+      ctx.fillStyle = 'rgba(26,28,44,0.22)';
+      ctx.fillRect(0, 0, TILE, 1);
+      ctx.fillRect(0, 0, 1, TILE);
+      tex.refresh();
+    }
     this.grid = scene.add
       .tileSprite(0, 0, VIEW_W + TILE, VIEW_H + TILE, 'debug-grid')
       .setOrigin(0, 0)

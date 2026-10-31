@@ -18,6 +18,7 @@ import { Juice } from '../view/juice';
 import { Particles } from '../view/particles';
 import { Shake } from '../view/shake';
 import { ATLAS, buildTilesetTexture, TILE_MARGIN, TILE_SPACING } from '../view/textures';
+import type { UIScene } from './UIScene';
 import { FixedStepLoop, fitCamera, lerp, SLOW_STEPS } from './play/loop';
 
 const SETTINGS_KEY = 'pixel-isle.gym';
@@ -119,11 +120,19 @@ export class GymScene extends Phaser.Scene {
     window.addEventListener('pointerdown', this.unlockAudio);
     document.addEventListener('visibilitychange', this.onVisibility);
     this.events.once('shutdown', () => {
+      this.game.events.off('layout', this.applyLayout, this);
       window.removeEventListener('keydown', this.onKey);
       window.removeEventListener('pointerdown', this.unlockAudio);
       document.removeEventListener('visibilitychange', this.onVisibility);
       this.devices.destroy();
+      this.gui?.destroy();
+      this.gui = null;
+      this.ui.destroy();
     });
+    const ui = this.scene.get('ui') as UIScene;
+    void ui.transition.reveal();
+    audio.music.play(null);
+    audio.music.ambience(null);
 
     const station = Number(new URLSearchParams(location.search).get('station') ?? 0);
     if (station >= 1 && station <= GYM_STATIONS.length) this.teleportStation(station - 1);
@@ -254,6 +263,14 @@ export class GymScene extends Phaser.Scene {
       case 'F5':
         if (this.loop.paused) this.loop.stepOnce = true;
         break;
+      case 'Backspace': {
+        // 回到标题
+        const ui = this.scene.get('ui') as UIScene;
+        if (ui.transition.busy) break;
+        audio.play('confirm', { volume: 0.6 });
+        void ui.transition.run('bell', true, 0.6).then(() => this.scene.start('title'));
+        break;
+      }
     }
   };
 

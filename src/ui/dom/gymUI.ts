@@ -57,6 +57,11 @@ export class GymUI {
   private stationTimer = 0;
   private toastTimer = 0;
 
+  /** 离开练习场时把 DOM 叠加层拿掉 */
+  destroy(): void {
+    this.root.remove();
+  }
+
   constructor() {
     const host = document.getElementById('ui') ?? document.body;
     this.root = el('div', '', host);

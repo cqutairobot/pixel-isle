@@ -1,10 +1,10 @@
 import type { AmbienceId } from './music/ambience';
 import { MusicPlayer, renderInBackground } from './music/player';
+import { saveSettings, settings } from '../platform/settings';
 import { DEFAULT_CHOICES, SFX, SFX_IDS, type SfxId } from './sfx';
 import { normalize, ZZFX_SAMPLE_RATE, zzfxSamples } from './zzfx';
 
 const CHOICES_KEY = 'pixel-isle.sfx-choices';
-const SETTINGS_KEY = 'pixel-isle.audio';
 /** 归一化后的峰值，约 -6 dBFS */
 const PEAK = 0.5;
 /** 同一音效同时最多播放几个 */
@@ -85,7 +85,8 @@ export class AudioEngine {
   private buffers = new Map<string, AudioBuffer>();
   private voices = new Map<string, number>();
   choices: Record<SfxId, number> = loadJSON(CHOICES_KEY, { ...DEFAULT_CHOICES });
-  settings = loadJSON(SETTINGS_KEY, { muted: false, volume: 0.8, music: 0.7, sfx: 1 });
+  /** 音量和静音存在设置里（src/platform/settings.ts） */
+  readonly settings = settings;
   readonly music = new MusicControl();
 
   get unlocked(): boolean {
@@ -105,23 +106,18 @@ export class AudioEngine {
     if (this.ctx.state !== 'running') void this.ctx.resume();
   }
 
-  private applyVolume(): void {
-    if (this.master) this.master.gain.value = this.settings.muted ? 0 : this.settings.volume;
-    if (this.sfxBus) this.sfxBus.gain.value = this.settings.sfx;
-    if (this.music.player) this.music.player.bus.gain.value = this.settings.music;
-  }
-
-  /** 总音量、音乐、音效（0–1） */
-  setVolumes(v: { volume?: number; music?: number; sfx?: number }): void {
-    Object.assign(this.settings, v);
-    this.applyVolume();
-    this.save(SETTINGS_KEY, this.settings);
+  /** 设置里的音量改了之后调用 */
+  applyVolume(): void {
+    const s = this.settings;
+    if (this.master) this.master.gain.value = s.muted ? 0 : s.master;
+    if (this.sfxBus) this.sfxBus.gain.value = s.sfx;
+    if (this.music.player) this.music.player.bus.gain.value = s.music;
   }
 
   setMuted(muted: boolean): void {
     this.settings.muted = muted;
     this.applyVolume();
-    this.save(SETTINGS_KEY, this.settings);
+    saveSettings();
   }
 
   setChoice(id: SfxId, index: number): void {

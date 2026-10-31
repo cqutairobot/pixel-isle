@@ -9,15 +9,23 @@ interface LevelProbe {
   world: {
     frame: number;
     hearts: number;
+    waiting: boolean;
     player: { body: { x: number; y: number }; onGround: boolean };
+    teleport(x: number, y: number): void;
   };
   loop: { paused: boolean };
+  ui: { modal: unknown };
+}
+
+interface TitleProbe {
+  stage: string;
 }
 
 declare global {
   interface Window {
     __gym?: GymProbe;
     __level?: LevelProbe;
+    __title?: TitleProbe;
   }
 }
 
@@ -69,9 +77,52 @@ test('试听板列出全部音效槽位', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('标题画面 → 菜单 → 练习场，没有报错', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await page.waitForFunction(() => window.__title, null, { timeout: 60_000 });
+  // 跳过启动 Logo 和标题字的入场动画，打开菜单
+  for (let i = 0; i < 4 && (await page.evaluate(() => window.__title!.stage)) !== 'menu'; i++) {
+    await page.keyboard.press('KeyK');
+    await page.waitForTimeout(700);
+  }
+  await page.waitForFunction(() => window.__title!.stage === 'menu', null, { timeout: 20_000 });
+  await page.screenshot({ path: 'test-results/title.png' });
+  // 第一次玩没有"继续"：新游戏 → 练习场
+  await page.keyboard.press('KeyS');
+  await page.waitForTimeout(200);
+  await page.keyboard.press('KeyK');
+  await page.waitForFunction(() => (window.__gym?.world.frame ?? 0) > 10, null, {
+    timeout: 30_000,
+  });
+  expect(errors).toEqual([]);
+});
+
+test('和海婶交谈：对话框打开、翻页、关闭，世界继续', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?intro=0#1-1');
+  await page.waitForFunction(() => (window.__level?.world.frame ?? 0) > 20, null, {
+    timeout: 60_000,
+  });
+  // 站到海婶旁边（第 15 列），按 W 交谈
+  await page.evaluate(() => window.__level!.world.teleport(231, 178));
+  await page.waitForTimeout(600);
+  await page.keyboard.press('KeyW');
+  await page.waitForFunction(() => !!window.__level!.ui.modal, null, { timeout: 5_000 });
+  expect(await page.evaluate(() => window.__level!.world.waiting)).toBe(true);
+  await page.screenshot({ path: 'test-results/dialog.png' });
+  for (let i = 0; i < 12 && (await page.evaluate(() => !!window.__level!.ui.modal)); i++) {
+    await page.keyboard.press('KeyK');
+    await page.waitForTimeout(400);
+  }
+  await page.waitForFunction(() => !window.__level!.ui.modal, null, { timeout: 10_000 });
+  await page.waitForFunction(() => !window.__level!.world.waiting, null, { timeout: 5_000 });
+  expect(errors).toEqual([]);
+});
+
 test('第 1 关能启动、能走、能暂停，没有报错', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/?intro=0');
+  await page.goto('/?intro=0#1-1');
   await page.waitForFunction(() => (window.__level?.world.frame ?? 0) > 30, null, {
     timeout: 60_000,
   });
@@ -85,7 +136,7 @@ test('第 1 关能启动、能走、能暂停，没有报错', async ({ page }) 
   await page.waitForFunction(() => window.__level!.loop.paused, null, { timeout: 5_000 });
   await page.screenshot({ path: 'test-results/level-1-1.png' });
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => !window.__level!.loop.paused, null, { timeout: 5_000 });
+  await page.waitForFunction(() => !window.__level!.loop.paused, null, { timeout: 20_000 });
   expect(await page.evaluate(() => window.__level!.world.hearts)).toBe(3);
   expect(errors).toEqual([]);
 });

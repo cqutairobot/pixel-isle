@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audio } from '../audio/engine';
 import type { Line } from '../content/dialog/line';
 import { currentLayout, type Layout } from '../platform/display';
 import { Bubble } from '../ui/bubble';
@@ -6,8 +7,11 @@ import { Cinema } from '../ui/cinema';
 import { DialogBox, type DialogHooks } from '../ui/dialogBox';
 import { Hud } from '../ui/hud';
 import { KeyHint } from '../ui/keyHint';
+import type { MenuSound } from '../ui/menu';
+import type { ModalHost } from '../ui/panelModal';
 import { SkipHint } from '../ui/skipHint';
 import { Toast } from '../ui/toast';
+import { Transition } from '../ui/transition';
 import { fitCamera } from './play/loop';
 
 /** 模态界面（对话框、结算、暂停菜单、设置……）：最上面的一个接管按键 */
@@ -31,6 +35,13 @@ export class UIScene extends Phaser.Scene {
   bubble!: Bubble;
   cinema!: Cinema;
   skip!: SkipHint;
+  transition!: Transition;
+  /** 给模态面板用的：在这里打开、关掉、播放菜单音效 */
+  readonly host: ModalHost = {
+    scene: this,
+    close: (m) => this.closeModal(m as Modal),
+    sfx: (s) => this.menuSfx(s),
+  };
   /** 打开的模态界面，后打开的在上面 */
   private modals: Modal[] = [];
   private hudAlpha = 1;
@@ -48,6 +59,7 @@ export class UIScene extends Phaser.Scene {
     this.bubble = new Bubble(this);
     this.cinema = new Cinema(this);
     this.skip = new SkipHint(this);
+    this.transition = new Transition(this);
     this.setLevelUI(false);
   }
 
@@ -96,6 +108,29 @@ export class UIScene extends Phaser.Scene {
     return box;
   }
 
+  menuSfx(s: MenuSound | 'open' | 'close'): void {
+    switch (s) {
+      case 'move':
+        audio.play('ui', { volume: 0.5, rate: 1.25 });
+        break;
+      case 'change':
+        audio.play('ui', { volume: 0.5, rate: 1.6 });
+        break;
+      case 'confirm':
+        audio.play('confirm', { volume: 0.7 });
+        break;
+      case 'back':
+        audio.play('ui', { volume: 0.5, rate: 0.8 });
+        break;
+      case 'open':
+        audio.play('open', { volume: 0.5 });
+        break;
+      case 'close':
+        audio.play('open', { volume: 0.4, rate: 0.8 });
+        break;
+    }
+  }
+
   /** 过场的上下黑边 */
   letterbox(on: boolean): void {
     this.cinema.letterbox(on);
@@ -113,6 +148,7 @@ export class UIScene extends Phaser.Scene {
   override update(_t: number, deltaMs: number): void {
     const dt = Math.min(deltaMs, 100) / 1000;
     this.cinema.update(dt);
+    this.transition.update(dt);
     const target = this.cinema.letterboxed || this.modals.some((m) => m.hidesHud) ? 0 : 1;
     this.hudAlpha += (target - this.hudAlpha) * (1 - Math.exp(-dt * 14));
     this.hud.root.setAlpha(this.hudAlpha);

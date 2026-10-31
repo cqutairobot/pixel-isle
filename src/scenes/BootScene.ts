@@ -7,7 +7,7 @@ export { UI_FONT };
 
 /** 启动后进入哪个场景（由 main.ts 按网址决定） */
 export interface BootTarget {
-  scene: 'gym' | 'level';
+  scene: 'gym' | 'level' | 'title';
   data?: Record<string, unknown>;
 }
 
@@ -31,6 +31,12 @@ export class BootScene extends Phaser.Scene {
       };
       this.scene.launch('ui');
       this.scene.start(target.scene, target.data);
+      // 去掉页面里的加载动画
+      const loader = document.getElementById('loader');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => loader.remove(), 400);
+      }
     });
   }
 }
