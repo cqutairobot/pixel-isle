@@ -42,6 +42,12 @@ css = css.replace(
 );
 if (/url\(\.\//.test(css)) throw new Error('样式表里还有相对路径资源，试玩页加载不到');
 
+// 加载时的小铃铛：样式和标记从 index.html 里取，两边保持一致
+const shell = readFileSync('index.html', 'utf8');
+const loaderCss = shell.match(/\/\* 加载时的小铃铛[\s\S]*?(?=\s*<\/style>)/)?.[0] ?? '';
+const loaderHtml = shell.match(/<div id="loader">[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '';
+if (!loaderCss || !loaderHtml) throw new Error('index.html 里找不到加载动画');
+
 const page = `<title>四时铃</title>
 <style>
 /* 单一深色外观：画面四周是深色信箱区 */
@@ -50,8 +56,10 @@ html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); c
 #game { position: fixed; inset: 0; }
 #game canvas { display: block; }
 ${css}
+${loaderCss}
 </style>
 <div id="game"></div>
+${loaderHtml}
 <div id="ui"></div>
 <script src="https://cdn.jsdelivr.net/npm/phaser@${version('phaser')}/dist/phaser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lil-gui@${version('lil-gui')}/dist/lil-gui.umd.min.js"></script>

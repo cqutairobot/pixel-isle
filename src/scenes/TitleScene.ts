@@ -285,7 +285,7 @@ export class TitleScene extends Phaser.Scene {
     if (this.stage !== 'press') return;
     this.stage = 'menu';
     this.ui.menuSfx('confirm');
-    this.tweens.add({ targets: this.press.root, alpha: 0, duration: 150 });
+    this.press.setVisible(false);
     this.buildMenu();
   }
 

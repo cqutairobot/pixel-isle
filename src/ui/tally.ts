@@ -177,7 +177,7 @@ export class Tally {
 
   private showBadges(animate: boolean): void {
     if (this.data.newRecord && !this.stamp) {
-      this.stamp = this.makeStamp(UI_TEXT.newRecord, 'red2', W - 70, 16);
+      this.stamp = this.makeStamp(UI_TEXT.newRecord, 'red2', W - 44, 106);
       if (animate) {
         this.stampSpring.set(2.4);
         this.sfx('stamp');
