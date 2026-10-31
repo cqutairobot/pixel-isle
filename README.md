@@ -3,7 +3,7 @@
 在浏览器里玩的原创像素风横版平台跳跃游戏。玩法是马里奥式的跑、跳、踩、顶，加上投掷装备、坐骑、冻住敌人滚雪球，以及一段海岛冒险故事。
 
 - 总体计划：[PLAN.md](PLAN.md)
-- 当前进度：**M1 第 1 关「晨钟村 · 晨光沙滩」已完成，等待试玩反馈**。包括标题画面、序章、对话与过场、音乐、设置与暂停菜单。详细计划见 [docs/levels/1-1.md](docs/levels/1-1.md)
+- 当前进度：**M1 第 1 关「晨钟村 · 晨光沙滩」已通过**（计划见 [docs/levels/1-1.md](docs/levels/1-1.md)）。**M2 第 2 关「椰影小径」的计划已写好，等待确认**：[docs/levels/1-2.md](docs/levels/1-2.md)
 - 练习场（M0）的计划见 [docs/levels/0-gym.md](docs/levels/0-gym.md)
 
 ![标题画面](docs/art/m1-title.png)
