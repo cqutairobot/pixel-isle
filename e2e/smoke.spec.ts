@@ -140,3 +140,83 @@ test('第 1 关能启动、能走、能暂停，没有报错', async ({ page }) 
   expect(await page.evaluate(() => window.__level!.world.hearts)).toBe(3);
   expect(errors).toEqual([]);
 });
+
+/** 关卡镜头是不是停在"淡出到深色"的状态（黑屏） */
+function cameraDark(): boolean {
+  const l = window.__level as unknown as {
+    cameras: {
+      main: {
+        fadeEffect: { isRunning: boolean; isComplete: boolean; direction: boolean; alpha: number };
+      };
+    };
+  };
+  const f = l.cameras.main.fadeEffect;
+  return (f.isRunning || f.isComplete) && f.direction && f.alpha > 0.5;
+}
+
+/** 找一列开阔的海面：从上到下都是空的，然后是海水；把小满放到海面上方掉下去 */
+function dropIntoSea(hearts: number): void {
+  const l = window.__level as unknown as {
+    world: {
+      hearts: number;
+      level: { grid: { cols: number; rows: number; get(c: number, r: number): number } };
+      teleport(x: number, y: number): void;
+    };
+  };
+  const g = l.world.level.grid;
+  for (let c = 150; c < g.cols; c++) {
+    let r = 0;
+    while (r < g.rows && g.get(c, r) === 0) r++;
+    if (r < g.rows && g.get(c, r) === 3 && r > 4) {
+      l.world.hearts = hearts;
+      l.world.teleport(c * 16 + 3, (r - 4) * 16);
+      return;
+    }
+  }
+  throw new Error('找不到开阔的海面');
+}
+
+test('掉进海里扣光心：回到检查点后画面恢复，不会一直黑屏', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?intro=0#1-1');
+  await page.waitForFunction(() => (window.__level?.world.frame ?? 0) > 20, null, {
+    timeout: 60_000,
+  });
+  // 只剩 1 颗心时掉海：倒下 → 回检查点满心复活
+  await page.evaluate(dropIntoSea, 1);
+  await page.waitForFunction(
+    () => (window.__level as unknown as { world: { state: string } }).world.state === 'dying',
+    null,
+    { timeout: 10_000 },
+  );
+  await page.waitForFunction(
+    () => {
+      const w = (window.__level as unknown as { world: { state: string; hearts: number } }).world;
+      return w.state === 'play' && w.hearts === 3;
+    },
+    null,
+    { timeout: 20_000 },
+  );
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: 'test-results/after-water-death.png' });
+  expect(await page.evaluate(cameraDark)).toBe(false);
+  expect(
+    await page.evaluate(
+      () =>
+        (window.__level as unknown as { ui: { transition: { covered: boolean } } }).ui.transition
+          .covered,
+    ),
+  ).toBe(false);
+  // 不致命的掉海：扣 1 心、在岸边复活，原来的淡出淡入照常
+  await page.evaluate(dropIntoSea, 3);
+  await page.waitForFunction(() => window.__level!.world.hearts === 2, null, { timeout: 10_000 });
+  await page.waitForFunction(
+    () =>
+      (window.__level as unknown as { world: { respawnTimer: number } }).world.respawnTimer === 0,
+    null,
+    { timeout: 10_000 },
+  );
+  await page.waitForTimeout(1200);
+  expect(await page.evaluate(cameraDark)).toBe(false);
+  expect(errors).toEqual([]);
+});

@@ -663,13 +663,14 @@ export class LevelScene extends Phaser.Scene {
           hud.setHearts(e.hearts);
           break;
         case 'splash':
-          if (e.big) {
+          // 掉海扣光了心：不先淡出，完整播放倒下演出（和被敌人打倒一样）
+          if (e.big && w.state !== 'dying') {
             this.hint('water');
             this.time.delayedCall(260, () => this.cameras.main.fadeOut(160, ...FADE));
           }
           break;
         case 'fellOut':
-          this.cameras.main.fadeOut(160, ...FADE);
+          if (w.state !== 'dying') this.cameras.main.fadeOut(160, ...FADE);
           break;
         case 'sun':
           audio.music.play(e.on ? 'sun' : (this.level.music ?? 'beach'), e.on ? 0.3 : 0.9);
@@ -682,9 +683,14 @@ export class LevelScene extends Phaser.Scene {
         case 'respawn':
           this.snapPrev();
           this.hero.resetRibbon(w.player.body.centerX, w.player.body.bottom);
-          if (e.cause !== 'death') this.cameras.main.fadeIn(220, ...FADE);
-          if (e.cause === 'death') {
-            // 在检查点从小满的位置张开
+          if (e.cause !== 'death') {
+            this.cameras.main.fadeIn(220, ...FADE);
+            // 兜底：界面层的转场不该在这时还盖着画面
+            if (this.ui.transition.covered && !this.ui.transition.busy)
+              void this.ui.transition.reveal(0.3);
+          } else {
+            // 清掉镜头上残留的淡出、闪光（否则会一直黑屏），再从小满的位置张开
+            this.cameras.main.resetFX();
             this.time.delayedCall(30, () => {
               const cam = this.cameras.main;
               void this.ui.transition.run('iris', false, 0.4, {
