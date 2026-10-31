@@ -20,6 +20,8 @@ export interface Block {
   revealed: boolean;
   /** 上弹动画剩余帧数 */
   bump: number;
+  /** 被打的方向：0 从下面顶（往上弹），±1 被海星从侧面打（往那边晃） */
+  bumpDir: number;
   /** 多次铃砖：已经顶出几枚、时限还剩多少帧（-1 表示还没开始计时） */
   hits: number;
   timer: number;
@@ -56,6 +58,7 @@ export class BlockSet {
       broken: false,
       revealed: kind !== 'hidden',
       bump: 0,
+      bumpDir: 0,
       hits: 0,
       timer: -1,
     };
@@ -76,8 +79,8 @@ export class BlockSet {
     }
   }
 
-  /** 从下面顶 (col, row) 这一格 */
-  hit(col: number, row: number): BlockHitResult | null {
+  /** 从下面顶 (col, row) 这一格；dir 不为 0 时是被海星从侧面打（±1 是海星飞行的方向） */
+  hit(col: number, row: number, dir = 0): BlockHitResult | null {
     const b = this.at(col, row);
     if (!b || b.broken) return null;
     if (b.used) return { block: b, item: null, broke: false, empty: true, bumped: false };
@@ -91,6 +94,7 @@ export class BlockSet {
       this.grid.set(col, row, T_SOLID);
     }
     b.bump = BUMP_FRAMES;
+    b.bumpDir = dir;
     if (b.kind === 'multi') {
       if (b.timer < 0) b.timer = RULES.multiBlockFrames;
       b.hits++;

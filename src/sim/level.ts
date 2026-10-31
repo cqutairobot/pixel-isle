@@ -9,6 +9,11 @@ export const MAT_SAND = 2;
 export const MAT_CRATE = 3;
 export const MAT_PLANK = 4;
 export const MAT_WATER = 5;
+/** 椰林（第 2 关）：落叶土、椰树叶（单向）、树皮（实心）、藤蔓木板（单向） */
+export const MAT_GROVE = 6;
+export const MAT_LEAF = 7;
+export const MAT_BARK = 8;
+export const MAT_VINE = 9;
 
 /** 图例里一个字符的含义：瓦片类型、材质，以及（可选）放在这一格的标记 */
 export interface LegendEntry {
@@ -20,14 +25,25 @@ export interface LegendEntry {
 
 export type ItemKind = 'shell' | 'bigShell' | 'mango' | 'sun' | 'glass';
 export type BlockKind = 'bell' | 'multi' | 'hidden' | 'brick';
-export type EnemyKind = 'crab' | 'blueClaw';
+export type EnemyKind = 'crab' | 'blueClaw' | 'urchin' | 'urchinHang' | 'gull';
 
 /** 关卡实体：不方便画进网格、带参数的东西。坐标单位是格。 */
 export type EntityDef =
   | { type: 'npc'; id: string; at: [number, number]; facing?: 1 | -1 }
   | { type: 'deco'; kind: string; at: [number, number]; flip?: boolean; front?: boolean }
-  /** 触发区：blocking 为 true 时世界会停下等过场或对话结束 */
-  | { type: 'trigger'; id: string; rect: [number, number, number, number]; blocking?: boolean }
+  /**
+   * 触发区：blocking 为 true 时世界会停下等过场或对话结束。
+   * unless：世界已经有这个剧情标记时，触发区一开始就算触发过（例如拿到海星后不再重播开场）
+   */
+  | {
+      type: 'trigger';
+      id: string;
+      rect: [number, number, number, number];
+      blocking?: boolean;
+      unless?: string;
+    }
+  /** 椰子树：at 是树根所在的格子；用海星打树冠会掉椰子，椰子碎开掉出贝壳（mango 时掉芒果） */
+  | { type: 'coconutTree'; at: [number, number]; coconuts?: number; mango?: boolean }
   /** 指定某一格的海玻璃编号（这一格可以是海玻璃 g，也可以是一块砖，砖里就装这枚海玻璃） */
   | { type: 'glass'; at: [number, number]; index: number }
   /** 风铃架：at 是木架左上角所在的格子；按顺序碰响后掉出编号为 glass 的海玻璃 */
@@ -92,6 +108,13 @@ export const BASE_LEGEND: Record<string, LegendEntry> = {
   g: { tile: T_EMPTY, marker: 'item', data: { kind: 'glass' } },
   k: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'crab' } },
   K: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'blueClaw' } },
+  // 第 2 关：椰林地形与新敌人
+  '&': { tile: T_SOLID, material: MAT_GROVE },
+  '-': { tile: T_ONEWAY, material: MAT_LEAF },
+  T: { tile: T_SOLID, material: MAT_BARK },
+  u: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'urchin' } },
+  U: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'urchinHang' } },
+  w: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'gull' } },
   C: { tile: T_EMPTY, marker: 'checkpoint' },
   G: { tile: T_EMPTY, marker: 'goal' },
 };

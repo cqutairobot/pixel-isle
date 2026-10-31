@@ -1,7 +1,7 @@
 import type { BlockKind, EnemyKind, ItemKind } from './level';
 
-/** 敌人被打倒的原因：踩、被下方的砖顶飞、太阳果 */
-export type DefeatCause = 'stomp' | 'bump' | 'sun';
+/** 敌人被打倒的原因：踩、被下方的砖顶飞、太阳果、回旋海星、掉下来的椰子 */
+export type DefeatCause = 'stomp' | 'bump' | 'sun' | 'starfish' | 'coconut';
 
 /** 回到安全地面的原因 */
 export type RespawnCause = 'pit' | 'water' | 'death';
@@ -33,7 +33,7 @@ export type SimEvent =
       facing: number;
     }
   | { type: 'enemyLost'; id: number; kind: EnemyKind; x: number; y: number; water: boolean }
-  | { type: 'hurt'; x: number; y: number; hearts: number; dir: number }
+  | { type: 'hurt'; x: number; y: number; hearts: number; dir: number; spike?: boolean }
   | { type: 'death'; x: number; y: number }
   | { type: 'splash'; x: number; y: number; big: boolean }
   // —— 方块与道具 ——
@@ -73,6 +73,28 @@ export type SimEvent =
   | { type: 'trigger'; id: string; blocking: boolean }
   | { type: 'talk'; id: string }
   | { type: 'chime'; index: number; x: number; y: number }
-  | { type: 'chimeSolved'; x: number; y: number };
+  | { type: 'chimeSolved'; x: number; y: number }
+  // —— 装备：回旋海星 ——
+  | { type: 'throw'; x: number; y: number; dirX: number; dirY: number }
+  /** 海星还在外面、或者刚接住还在冷却时按了攻击键 */
+  | { type: 'starfishDud'; x: number; y: number }
+  /** 去程撞到墙，折返 */
+  | { type: 'starfishBounce'; x: number; y: number }
+  | { type: 'starfishHit'; id: number; x: number; y: number }
+  /** 接住；carried 是一起带回来的道具数 */
+  | { type: 'starfishCatch'; x: number; y: number; carried: number }
+  /** 捞到一个道具 */
+  | { type: 'starfishGrab'; id: number; x: number; y: number }
+  /** 按了切换键：count 是拥有的装备数 */
+  | { type: 'equipSwitch'; count: number }
+  // —— 第 2 关的敌人和椰子 ——
+  | { type: 'urchinShake'; id: number; x: number; y: number }
+  | { type: 'urchinFall'; id: number; x: number; y: number }
+  | { type: 'urchinLand'; id: number; x: number; y: number }
+  | { type: 'gullAlert'; id: number; x: number; y: number }
+  | { type: 'gullDive'; id: number; x: number; y: number }
+  | { type: 'coconutDrop'; id: number; x: number; y: number }
+  | { type: 'coconutBounce'; id: number; x: number; y: number }
+  | { type: 'coconutBreak'; id: number; x: number; y: number };
 
 export type SimEventType = SimEvent['type'];

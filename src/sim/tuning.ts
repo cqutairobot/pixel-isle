@@ -202,4 +202,36 @@ export const RULES = {
   /** 道具的重力与最大下落速度 */
   itemGravity: 900,
   itemMaxFall: 280,
+  /** 回旋海星（docs/levels/1-2.md §3）：去程初速与射程、回程加速度与最高速度、接住半径、接住后的冷却 */
+  starfishSpeed: 260,
+  starfishRange: 80,
+  starfishReturnAccel: 900,
+  starfishReturnMax: 300,
+  starfishCatchRadius: 12,
+  starfishCooldown: 10,
+  starfishSize: 10,
+  /** 海星打中敌人的停顿 */
+  starfishHitstop: 2,
+  /** 刺海胆：爬行速度 */
+  urchinCrawl: 10,
+  /** 倒挂刺海胆：小满在它正下方多远以内、往下几格以内会触发；晃多久才掉 */
+  hangDetectX: 20,
+  hangDetectTiles: 8,
+  hangShakeFrames: 24,
+  /** 冰喙鸥：巡航速度、上下浮动、巡航范围（出生点左右）、预警、俯冲、拉起、冷却、发现范围 */
+  gullSpeed: 40,
+  gullBobAmp: 6,
+  gullBobFrames: 72,
+  gullPatrol: 64,
+  gullTelegraphFrames: 30,
+  gullDiveSpeed: 200,
+  gullClimbSpeed: 70,
+  gullCooldown: 90,
+  gullDetectX: 24,
+  gullDetectTiles: 8,
+  /** 椰子：重力、弹几下、弹起比例、滚动减速 */
+  coconutGravity: 900,
+  coconutBounces: 2,
+  coconutRestitution: 0.4,
+  coconutRollDecel: 120,
 } as const;

@@ -34,6 +34,8 @@ export interface Item {
   /** 弹出后多少帧内不能拾取，免得一冒头就被吃掉 */
   delay: number;
   alive: boolean;
+  /** 挂在回旋海星上（位置由 World 每步更新，小满接住海星时才算拾取） */
+  carried: boolean;
 }
 
 export interface ItemLost {
@@ -102,8 +104,16 @@ export class ItemSet {
     return it;
   }
 
-  private push(p: Omit<Item, 'id' | 'vx' | 'vy' | 'onGround' | 'alive'>): Item {
-    const it: Item = { ...p, id: this.nextId++, vx: 0, vy: 0, onGround: false, alive: true };
+  private push(p: Omit<Item, 'id' | 'vx' | 'vy' | 'onGround' | 'alive' | 'carried'>): Item {
+    const it: Item = {
+      ...p,
+      id: this.nextId++,
+      vx: 0,
+      vy: 0,
+      onGround: false,
+      alive: true,
+      carried: false,
+    };
     this.list.push(it);
     return it;
   }
@@ -116,6 +126,7 @@ export class ItemSet {
       if (!it.alive) continue;
       const b = it.body;
       b.snapshot();
+      if (it.carried) continue;
       if (it.delay > 0) it.delay--;
       if (it.emerge > 0) {
         it.emerge--;
@@ -163,7 +174,7 @@ export class ItemSet {
   /** 和矩形 r 重叠、可以拾取的道具 */
   touching(r: Rect): Item[] {
     return this.list.filter(
-      (it) => it.alive && it.emerge === 0 && it.delay === 0 && it.body.overlaps(r),
+      (it) => it.alive && !it.carried && it.emerge === 0 && it.delay === 0 && it.body.overlaps(r),
     );
   }
 
@@ -171,7 +182,7 @@ export class ItemSet {
   onTopOf(col: number, row: number): Item[] {
     const top = row * TILE;
     return this.list.filter((it) => {
-      if (!it.alive || it.emerge > 0) return false;
+      if (!it.alive || it.carried || it.emerge > 0) return false;
       const b = it.body;
       const resting = it.physical
         ? it.onGround && b.bottom === top
