@@ -60,10 +60,17 @@ export class EntityViews {
   private gateSwing = 0;
   private waved = new Set<string>();
   private waveT = new Map<string, number>();
-  private emotes: Array<{ who: string; img: Phaser.GameObjects.Image; t: number; life: number }> =
-    [];
+  private emotes: Array<{
+    at: unknown;
+    where: () => { x: number; y: number } | null;
+    img: Phaser.GameObjects.Image;
+    t: number;
+    life: number;
+  }> = [];
   /** 对话、过场期间：不显示交谈提示"↑" */
   storyMode = false;
+  /** 过场里小满由导演摆布时的位置（脚底中心）；null 用 sim 里的位置 */
+  heroAt: { x: number; y: number; facing: 1 | -1 } | null = null;
 
   constructor(
     private scene: Phaser.Scene,
@@ -144,6 +151,19 @@ export class EntityViews {
     return { x: n.x, y: n.y - (NPC_FRAMES[id]?.h ?? 20) };
   }
 
+  /** 序章里白天的人都不在 */
+  setNpcsVisible(on: boolean): void {
+    for (const img of this.npcs.values()) img.setVisible(on);
+  }
+
+  /** 过场里的回回（演出精灵）换成这个：直接出现在 (x, y)，不再播放登场动画 */
+  placeHuihui(x: number, y: number): void {
+    this.huiShown = true;
+    this.hx = x;
+    this.hy = y;
+    this.huihui.setVisible(true).setScale(1);
+  }
+
   /** 让回回换个表情一会儿（开心、担心） */
   mood(face: 'happy' | 'worry', t = 0.8): void {
     this.huiMood = { face, t };
@@ -153,27 +173,33 @@ export class EntityViews {
   headOf(who: string): { x: number; y: number } | null {
     if (who === 'hero' || who === 'xiaoman') {
       const b = this.world.player.body;
+      if (this.heroAt) return { x: this.heroAt.x, y: this.heroAt.y - b.h - 2 };
       return { x: b.centerX, y: b.y - 2 };
     }
     if (who === 'huihui') return this.huihuiPos;
     return this.npcTop(who);
   }
 
-  /** 头顶冒一个表情气泡（！？♪ …），弹出后停一会儿再消失 */
-  emote(who: string, kind: 'bang' | 'q' | 'note' | 'dots', life = 1.1): void {
-    for (const e of this.emotes.filter((q) => q.who === who)) e.t = Math.max(e.t, e.life - 0.08);
+  /** 头顶冒一个表情气泡（！？♪ …），弹出后停一会儿再消失；at 是人名或者一个返回位置的函数 */
+  emote(
+    at: string | (() => { x: number; y: number } | null),
+    kind: 'bang' | 'q' | 'note' | 'dots',
+    life = 1.1,
+  ): void {
+    const where = typeof at === 'string' ? () => this.headOf(at) : at;
+    for (const e of this.emotes.filter((q) => q.at === at)) e.t = Math.max(e.t, e.life - 0.08);
     const img = this.scene.add
       .image(0, 0, ATLAS, `ui/emote_${kind}`)
       .setOrigin(0.5, 1)
       .setDepth(15)
       .setScale(0);
-    this.emotes.push({ who, img, t: 0, life });
+    this.emotes.push({ at, where, img, t: 0, life });
   }
 
   private updateEmotes(dt: number): void {
     this.emotes = this.emotes.filter((e) => {
       e.t += dt;
-      const at = this.headOf(e.who);
+      const at = e.where();
       if (!at || e.t >= e.life) {
         e.img.destroy();
         return false;
@@ -359,7 +385,9 @@ export class EntityViews {
       s.target = Math.sin(this.time * 1.3 + i) * 0.05;
       img.setRotation(s.update(dt));
     });
-    this.updateHuihui(dt, p.body.centerX, p.body.y, p.facing);
+    const h = this.heroAt;
+    if (h) this.updateHuihui(dt, h.x, h.y - p.body.h, h.facing);
+    else this.updateHuihui(dt, p.body.centerX, p.body.y, p.facing);
     this.updateEmotes(dt);
   }
 

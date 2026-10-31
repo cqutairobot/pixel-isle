@@ -71,7 +71,7 @@ test('试听板列出全部音效槽位', async ({ page }) => {
 
 test('第 1 关能启动、能走、能暂停，没有报错', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/');
+  await page.goto('/?intro=0');
   await page.waitForFunction(() => (window.__level?.world.frame ?? 0) > 30, null, {
     timeout: 60_000,
   });

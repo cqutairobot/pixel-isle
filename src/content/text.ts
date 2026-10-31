@@ -21,6 +21,8 @@ export const UI_TEXT = {
   next: '继续',
   comingSoon: '第 2 关「椰影小径」正在制作中，敬请期待！',
   confirmHint: 'K / 空格 确认',
+  skipKey: '长按 Esc 跳过',
+  skipPad: '长按 Start 跳过',
 } as const;
 
 /** 屏幕下方的按键提示 */

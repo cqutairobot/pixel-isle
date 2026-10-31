@@ -113,7 +113,23 @@ function note(c: ColorName): RGBAImage {
   return p.toImage();
 }
 
+/** 雪花：小的是十字，大的是六角 */
+function snow(big: boolean): RGBAImage {
+  const p = new Paint(big ? 5 : 3, big ? 5 : 3);
+  if (big) {
+    p.vline(2, 0, 4, 'frost').hline(0, 4, 2, 'frost');
+    p.set(1, 1, 'cloud').set(3, 1, 'cloud').set(1, 3, 'cloud').set(3, 3, 'cloud');
+    p.set(2, 2, 'white');
+  } else {
+    p.set(1, 0, 'cloud').set(0, 1, 'cloud').set(2, 1, 'cloud').set(1, 2, 'cloud');
+    p.set(1, 1, 'white');
+  }
+  return p.toImage();
+}
+
 const frames: Record<string, RGBAImage> = {};
+frames.snow_0 = snow(false);
+frames.snow_1 = snow(true);
 [4, 8, 12, 16].forEach(
   (r, i) => (frames[`ring_${i}`] = ring(r, i < 2 ? 2 : 1, i < 2 ? 'cream' : 'gold')),
 );

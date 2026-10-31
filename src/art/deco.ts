@@ -199,7 +199,7 @@ function bench(): RGBAImage {
 }
 
 /** 钟楼：石砌底座、白墙、开敞的钟亭和大钟、红瓦尖顶；冰霜从底座往上爬 */
-function tower(): RGBAImage {
+function tower(frosty = true): RGBAImage {
   const w = 80;
   const h = 176;
   const p = new Paint(w, h);
@@ -261,7 +261,11 @@ function tower(): RGBAImage {
   p.ellipse(40, 150, 10, 6, 'bark');
   p.vline(40, 146, 175, 'night');
   p.set(44, 162, 'gold');
-  // 冰霜：底座和塔身上不规则的冰斑，钟亭边缘挂着冰柱，大钟上也结了霜
+  // 冰霜：底座和塔身上不规则的冰斑，钟亭边缘挂着冰柱，大钟上也结了霜（序章里还没有）
+  if (!frosty) {
+    p.outline('slate');
+    return p.toImage();
+  }
   const frost = (cx: number, cy: number, r: number) => {
     for (let y = -r; y <= r; y++)
       for (let x = -r; x <= r; x++)
@@ -547,6 +551,7 @@ const frames: Record<string, RGBAImage> = {
   fence: fence(),
   bench: bench(),
   tower: tower(),
+  tower_clean: tower(false),
   palm_0: palm(1, 0),
   palm_1: palm(1, 1),
   palm_small_0: palm(0.62, 0),

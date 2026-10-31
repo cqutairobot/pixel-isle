@@ -34,6 +34,8 @@ export interface DialogHooks {
   /** 说话音（参数是音高倍数） */
   voice?: (pitch: number) => void;
   sfx?: (id: 'open' | 'page' | 'close') => void;
+  /** 每句开始时（第几句、这一句） */
+  onLine?: (index: number, line: Line) => void;
   onDone?: () => void;
 }
 
@@ -88,7 +90,7 @@ export class DialogBox {
     const place =
       hooks.place === 'top' || hooks.place === 'bottom'
         ? hooks.place
-        : a && a.y > VIEW_H * 0.58
+        : a && a.y > VIEW_H * 0.6
           ? 'top'
           : 'bottom';
     this.y = place === 'top' ? Y_TOP : Y_BOTTOM;
@@ -142,6 +144,7 @@ export class DialogBox {
       return;
     }
     if (this.index > 0) this.hooks.sfx?.('page');
+    this.hooks.onLine?.(this.index, line);
     this.show(line);
   }
 

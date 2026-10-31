@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/engine';
+import { CUTSCENES } from '../content/cutscenes/1-1';
 import { END_STATES } from '../content/cutscenes/endStates';
-import { ADOU_SOLVED, BAILU_MEET, BELLTOWER, NPC_TALK } from '../content/dialog/1-1';
+import { ADOU_SOLVED, NPC_TALK } from '../content/dialog/1-1';
 import type { Line } from '../content/dialog/line';
 import { LEVELS } from '../content/levels';
 import { HINTS, UI_TEXT } from '../content/text';
@@ -17,6 +18,7 @@ import {
   type SaveData,
 } from '../platform/save';
 import type { SimEvent } from '../sim/events';
+import type { Player } from '../sim/player';
 import { BTN, EMPTY_INPUT, type InputFrame } from '../sim/input';
 import { parseLevel, standAt, type ParsedLevel } from '../sim/level';
 import { cloneTuning, PRESETS } from '../sim/tuning';
@@ -31,6 +33,7 @@ import { Juice } from '../view/juice';
 import { LevelView } from '../view/levelView';
 import { Particles } from '../view/particles';
 import { Shake } from '../view/shake';
+import { Director, type DirectorHost } from './cutscene/director';
 import { FixedStepLoop, fitCamera, lerp, SLOW_STEPS } from './play/loop';
 import type { UIScene } from './UIScene';
 
@@ -38,9 +41,19 @@ export interface LevelSceneData {
   levelId?: string;
   /** 从第几个检查点开始（调试用） */
   checkpoint?: number;
+  /** prologue：序章（同一张地图的夜晚，只播过场） */
+  mode?: 'play' | 'prologue';
+  /** 从头开始时播放开场过场（默认播放） */
+  intro?: boolean;
 }
 
 const FADE: [number, number, number] = [26, 28, 44];
+/** 长按多久跳过过场（秒） */
+const SKIP_HOLD = 1;
+/** 序章的夜色：整体压暗、偏蓝（4×5 颜色矩阵） */
+const NIGHT_MATRIX = [
+  0.42, 0.06, 0.06, 0, 0.0, 0.04, 0.5, 0.1, 0, 0.0, 0.08, 0.16, 0.74, 0, 0.04, 0, 0, 0, 1, 0,
+];
 
 /**
  * 正式关卡场景（第 1 关起）。固定 60Hz 逻辑步 + 渲染插值，sim 产生事件，
@@ -73,6 +86,13 @@ export class LevelScene extends Phaser.Scene {
     [];
   /** 正在进行的对话或过场 */
   private story: string | null = null;
+  private director: Director | null = null;
+  private mode: 'play' | 'prologue' = 'play';
+  private skipHold = 0;
+  private skipping = false;
+  /** 对话、过场结束后镜头从原来的位置平滑地回到世界镜头 */
+  private handoff: { x: number; y: number; t: number } | null = null;
+  private lanternGlows: Phaser.GameObjects.Image[] = [];
   private keyDone = { moved: 0, jumps: 0 };
   private death: { t: number; x: number; y: number; vy: number; dy: number } | null = null;
   private clearT = -1;
@@ -91,6 +111,12 @@ export class LevelScene extends Phaser.Scene {
     this.hintsShown = new Set();
     this.sayQueue = [];
     this.story = null;
+    this.director = null;
+    this.mode = data.mode ?? 'play';
+    this.skipHold = 0;
+    this.skipping = false;
+    this.handoff = null;
+    this.lanternGlows = [];
     this.keyDone = { moved: 0, jumps: 0 };
     this.death = null;
     this.clearT = -1;
@@ -115,7 +141,7 @@ export class LevelScene extends Phaser.Scene {
     }
     this.startX = this.world.player.body.x;
 
-    this.bg = new IslandBackground(this, this.level);
+    this.bg = new IslandBackground(this, this.level, this.mode === 'prologue');
     this.view = new LevelView(this, this.level);
     this.particles = new Particles(this);
     this.ents = new EntityViews(this, this.world, this.particles);
@@ -136,7 +162,8 @@ export class LevelScene extends Phaser.Scene {
     this.gray.setActive(false);
 
     this.ui = this.scene.get('ui') as UIScene;
-    this.ui.setLevelUI(true);
+    this.ui.setCover(0);
+    this.ui.setLevelUI(this.mode === 'play');
     this.ui.hud.setMaxHearts(this.world.maxHearts, this.world.hearts);
     this.ui.hud.setShells(0, true);
     this.syncGlass();
@@ -161,9 +188,54 @@ export class LevelScene extends Phaser.Scene {
 
     this.snapPrev();
     this.hero.resetRibbon(this.world.player.body.centerX, this.world.player.body.bottom);
-    this.cameras.main.fadeIn(500, ...FADE);
-    this.time.delayedCall(700, () => this.ui.keyHint.show('move', this.scheme()));
     (window as unknown as { __level: unknown }).__level = this;
+    if (this.mode === 'prologue') {
+      this.setupNight();
+      this.playCutscene('prologue', () => {
+        setFlag(this.save, 'prologueSeen');
+        writeSave(this.save);
+        this.scene.restart({ levelId: this.levelId });
+      });
+      return;
+    }
+    this.cameras.main.fadeIn(500, ...FADE);
+    if (!cp && data.intro !== false && CUTSCENES.intro) {
+      this.playCutscene('intro', () => {
+        this.ui.cinema.banner(UI_TEXT.chapter, UI_TEXT.levelTitle);
+        this.time.delayedCall(2600, () => this.ui.keyHint.show('move', this.scheme()));
+      });
+    } else this.time.delayedCall(700, () => this.ui.keyHint.show('move', this.scheme()));
+  }
+
+  /** 序章：夜色滤镜、点亮的灯笼、藏起白天才有的人和东西 */
+  private setupNight(): void {
+    const night = this.cameras.main.filters.internal.addColorMatrix();
+    night.colorMatrix.set(NIGHT_MATRIX);
+    this.ents.setNpcsVisible(false);
+    for (const d of this.view.decos) {
+      if (d.kind === 'statue') d.img.setVisible(false);
+      // 霜降来之前，钟楼还没有结霜；圆窗里亮着灯
+      if (d.kind === 'tower') {
+        d.img.setFrame('deco/tower_clean');
+        this.lanternGlows.push(
+          this.add
+            .image(d.img.x + 40, d.img.y - d.img.height + 92, 'atlas', 'npc/glow')
+            .setBlendMode(1)
+            .setDepth(-11)
+            .setScale(1.3)
+            .setAlpha(0.6),
+        );
+      }
+      if (d.kind === 'lantern') {
+        const g = this.add
+          .image(d.img.x + 4, d.img.y - d.img.height + 9, 'atlas', 'npc/glow')
+          .setBlendMode(1)
+          .setDepth(-7)
+          .setScale(1.6)
+          .setAlpha(0.55);
+        this.lanternGlows.push(g);
+      }
+    }
   }
 
   private applyLayout(L: Layout): void {
@@ -186,7 +258,7 @@ export class LevelScene extends Phaser.Scene {
   private onVisibility = (): void => {
     if (document.hidden) {
       this.devices.releaseAll();
-      if (!this.loop.paused && this.clearT < 0) this.setPaused(true);
+      if (!this.loop.paused && this.clearT < 0 && !this.story) this.setPaused(true);
     }
   };
 
@@ -269,6 +341,8 @@ export class LevelScene extends Phaser.Scene {
     const input = this.devices.sample();
     this.lastInput = input;
     if (w.waiting && !this.story) this.beginStory();
+    // 对话、过场期间世界不前进（这些帧也不记进回放）
+    if (this.story) return;
     if (input.pressed & BTN.attack && w.state === 'play') this.hint('attack');
     w.step(input);
     this.juice.handle(w.events, w);
@@ -294,20 +368,153 @@ export class LevelScene extends Phaser.Scene {
       else done();
     } else if (w.pendingTrigger) {
       const id = w.pendingTrigger;
-      this.story = id;
-      const lines = id === 'belltower' ? BELLTOWER.flat() : id === 'bailu' ? BAILU_MEET : [];
-      const done = () => this.endStory(() => w.resolveTrigger(END_STATES[id] ?? {}));
-      if (lines.length) this.playDialog(lines, done);
-      else done();
+      this.playCutscene(id, () => w.resolveTrigger(END_STATES[id] ?? {}));
     }
   }
 
+  /**
+   * 播放一段过场。世界在过场期间不前进；播完（或跳过）后调用 resolve 套用结束状态。
+   * 没有分镜的阻塞触发直接套用结束状态。
+   */
+  private playCutscene(id: string, resolve: () => void): void {
+    const script = CUTSCENES[id];
+    this.story = id;
+    if (!script) {
+      this.endStory(resolve);
+      return;
+    }
+    this.ents.storyMode = true;
+    this.ui.bubble.hide();
+    if (this.ui.keyHint.current) this.ui.keyHint.done(this.ui.keyHint.current);
+    const w = this.world;
+    const b = w.player.body;
+    const cam = this.cameras.main;
+    const host: DirectorHost = {
+      scene: this,
+      ui: this.ui,
+      particles: this.particles,
+      hero: { x: b.centerX, y: b.bottom, facing: w.player.facing },
+      camera: { x: cam.scrollX - this.shake.x, y: cam.scrollY - this.shake.y },
+      bounds: { w: this.level.grid.widthPx, h: this.level.grid.heightPx },
+      headOf: (who) => this.ents.headOf(who),
+      emote: (at, kind, life) => this.ents.emote(at, kind, life),
+      sfx: (sid, opts) => audio.play(sid, opts),
+      music: (mid) => this.playMusic(mid),
+      shake: (a) => this.shake.add(a),
+      signal: (name) => this.onSignal(name),
+      toast: (text) => this.ui.toast.show(text, 2.4),
+      dialog: this.dialogSounds(),
+    };
+    const d = new Director(host);
+    this.director = d;
+    this.ui.skip.hint(this.skipLabel());
+    void script(d).then(() => {
+      // 回回从演出精灵无缝换成跟着小满的那一个
+      const hui = d.where('huihui');
+      if (hui) this.ents.placeHuihui(hui.x, hui.y);
+      d.finish();
+      this.director = null;
+      this.ents.heroAt = null;
+      this.ui.skip.hide();
+      this.endStory(resolve);
+      if (this.skipping) {
+        this.skipping = false;
+        const c = { a: 1 };
+        this.tweens.add({
+          targets: c,
+          a: 0,
+          duration: 300,
+          onUpdate: () => this.ui.setCover(c.a),
+        });
+      }
+    });
+  }
+
   private endStory(resolve: () => void): void {
+    // 记下现在画面上的镜头位置，套用结束状态后从这里平滑地回到世界镜头
+    const cam = this.cameras.main;
+    const from = { x: cam.scrollX - this.shake.x, y: cam.scrollY - this.shake.y };
     resolve();
+    this.snapPrev();
+    this.handoff = { ...from, t: 0 };
     // 关掉对话框的那一下按键不能让小满跳起来
     this.devices.flush();
     this.story = null;
     this.ents.storyMode = false;
+  }
+
+  private skipLabel(): string {
+    return this.devices.lastDevice === 'gamepad' ? UI_TEXT.skipPad : UI_TEXT.skipKey;
+  }
+
+  /** 长按 Esc / Start 跳过过场：快速变黑 → 跳到结尾 → 淡入 */
+  private updateSkip(dt: number, held: number): void {
+    const d = this.director;
+    const holding = !!d && !this.skipping && (held & (BTN.start | BTN.cancel)) !== 0;
+    this.skipHold = holding ? this.skipHold + dt : 0;
+    this.ui.skip.update(dt, Math.min(1, this.skipHold / SKIP_HOLD), this.skipLabel());
+    if (!d || this.skipHold < SKIP_HOLD) return;
+    this.skipHold = 0;
+    this.skipping = true;
+    audio.play('confirm', { volume: 0.6 });
+    const c = { a: this.ui.cinema.coverAlpha };
+    this.tweens.add({
+      targets: c,
+      a: 1,
+      duration: 160,
+      onUpdate: () => this.ui.setCover(c.a),
+      onComplete: () => d.skip(),
+    });
+  }
+
+  /** 过场里关卡场景特有的演出 */
+  private onSignal(name: string): void {
+    if (name === 'lightsOut') {
+      // 灯火闪两下就灭了
+      for (const g of this.lanternGlows)
+        this.tweens.chain({
+          targets: g,
+          tweens: [
+            { alpha: 0.15, duration: 90 },
+            { alpha: 0.5, duration: 70 },
+            { alpha: 0.1, duration: 80 },
+            { alpha: 0.35, duration: 60 },
+            { alpha: 0, duration: 220 },
+          ],
+        });
+    } else if (name === 'frost') {
+      // 冰霜从钟楼往两边蔓延：钟楼一下子结满了霜
+      for (const d of this.view.decos) if (d.kind === 'tower') d.img.setFrame('deco/tower');
+      const x0 = 70 * 16 + 30;
+      for (let i = 0; i < 26; i++) {
+        const dir = i % 2 ? 1 : -1;
+        const k = Math.floor(i / 2);
+        this.time.delayedCall(k * 70, () =>
+          this.particles.spawn({
+            x: x0 + dir * k * 22,
+            y: 12 * 16 - 2,
+            vy: -18,
+            life: 0.9,
+            frames: ['fx2/snow_1', 'fx2/snow_0'],
+            fade: true,
+          }),
+        );
+      }
+      this.shake.add(0.2);
+    }
+  }
+
+  /** 音乐（步骤 3 接上音乐系统） */
+  private playMusic(_id: string | null): void {}
+
+  private dialogSounds(): DirectorHost['dialog'] {
+    return {
+      voice: (pitch) => audio.play('voice', { rate: pitch, volume: 0.7 }),
+      sfx: (s) =>
+        s === 'page'
+          ? audio.play('page', { volume: 0.7 })
+          : audio.play('open', { volume: 0.5, rate: s === 'close' ? 0.8 : 1 }),
+    };
   }
 
   /** 和 NPC 交谈：第一次说 first（记进存档），之后说 again；阿豆在风铃解开后说 after */
@@ -327,12 +534,8 @@ export class LevelScene extends Phaser.Scene {
   private playDialog(lines: readonly Line[], onDone: () => void): void {
     this.ents.storyMode = true;
     this.ui.dialog(lines, {
+      ...this.dialogSounds(),
       anchor: (who) => this.screenAnchor(who),
-      voice: (pitch) => audio.play('voice', { rate: pitch, volume: 0.7 }),
-      sfx: (s) =>
-        s === 'page'
-          ? audio.play('page', { volume: 0.7 })
-          : audio.play('open', { volume: 0.5, rate: s === 'close' ? 0.8 : 1 }),
       onDone,
     });
   }
@@ -533,9 +736,10 @@ export class LevelScene extends Phaser.Scene {
 
   override update(_time: number, deltaMs: number): void {
     const uiIn = this.devices.sampleUI();
+    this.updateSkip(Math.min(deltaMs, 100) / 1000, uiIn.held);
     if (this.ui.modal) {
       this.ui.modal.input(uiIn.pressed, uiIn.held);
-    } else if (uiIn.pressed & BTN.start && this.clearT < 0) {
+    } else if (uiIn.pressed & BTN.start && this.clearT < 0 && !this.story) {
       this.setPaused(!this.loop.paused);
     } else if (this.pause && uiIn.pressed & BTN.cancel) {
       this.setPaused(false);
@@ -550,15 +754,39 @@ export class LevelScene extends Phaser.Scene {
     const p = w.player;
     const b = p.body;
     this.shake.update(dt);
-    const cx = lerp(this.prev.cx, w.camera.x, alpha) + this.shake.x;
-    const cy = lerp(this.prev.cy, w.camera.y, alpha) + this.shake.y;
+    const d = this.director;
+    d?.update(dt);
+    let bx = lerp(this.prev.cx, w.camera.x, alpha);
+    let by = lerp(this.prev.cy, w.camera.y, alpha);
+    // 过场镜头按权重混进来；过场、对话结束后从原来的位置平滑地回到世界镜头
+    if (d && d.cam.w > 0) {
+      bx = lerp(bx, d.cam.x, d.cam.w);
+      by = lerp(by, d.cam.y, d.cam.w);
+    } else if (this.handoff) {
+      const h = this.handoff;
+      h.t = Math.min(1, h.t + dt / 0.5);
+      const k = 0.5 - Math.cos(h.t * Math.PI) / 2;
+      bx = lerp(h.x, bx, k);
+      by = lerp(h.y, by, k);
+      if (h.t >= 1) this.handoff = null;
+    }
+    const cx = bx + this.shake.x;
+    const cy = by + this.shake.y;
     this.cameras.main.setScroll(cx, cy);
-    const hx = lerp(b.px, b.x, alpha) + b.w / 2;
+    let hx = lerp(b.px, b.x, alpha) + b.w / 2;
     let hy = lerp(b.py, b.y, alpha) + b.h;
 
     // 主角的特殊姿势：受击硬直、死亡抛物线、通关欢呼
-    let visible = w.respawnTimer === 0;
-    if (this.death) {
+    let visible = w.respawnTimer === 0 && this.mode === 'play';
+    const pup = d?.hero;
+    if (pup) {
+      // 过场：小满由导演摆布
+      hx = pup.x;
+      hy = pup.y;
+      visible = pup.visible && this.mode === 'play';
+      this.hero.override = pup.pose;
+      this.ents.heroAt = { x: pup.x, y: pup.y, facing: pup.facing };
+    } else if (this.death) {
       const d = this.death;
       d.t += dt;
       if (d.t < 0.2) this.hero.override = 'hurt';
@@ -583,7 +811,18 @@ export class LevelScene extends Phaser.Scene {
       this.hero.resetRibbon(hx, hy);
     this.lastHx = hx;
     this.lastHy = hy;
-    this.hero.update(dt, p, w.tuning, hx, hy, visible);
+    if (pup) {
+      const puppet = {
+        facing: pup.facing,
+        onGround: true,
+        vx: pup.vx,
+        vy: 0,
+        crouching: false,
+        lookingUp: false,
+        skidding: false,
+      } as unknown as Player;
+      this.hero.update(dt, puppet, w.tuning, hx, hy, visible);
+    } else this.hero.update(dt, p, w.tuning, hx, hy, visible);
     this.ents.update(dt, alpha, cx);
     this.particles.update(dt, false);
     this.juice.tick(dt, w);

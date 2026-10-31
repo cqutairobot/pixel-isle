@@ -195,6 +195,96 @@ function huihui(frame: 'idle_0' | 'idle_1' | 'blink' | 'happy' | 'worry'): RGBAI
   return p.toImage();
 }
 
+// —— 霜降：高瘦的身影，冷白面具、银蓝长发、长及脚面的紫斗篷（默认朝右）——
+function shuangjiang(frame: 0 | 1 | 'cast'): RGBAImage {
+  const p = new Paint(22, 34);
+  const sway = frame === 1 ? 1 : 0;
+  // 长发：从头顶披到背后
+  p.ellipse(9, 5, 4.5, 4.5, 'mist');
+  p.rect(4, 5, 4, 15, 'mist');
+  p.vline(3, 9, 19 + sway, 'stone').vline(4, 14, 21 + sway, 'stone');
+  p.vline(6, 7, 18, 'cloud');
+  // 斗篷：肩窄、下摆宽，前襟一道霜色镶边
+  for (let y = 10; y < 33; y++) {
+    const t = (y - 10) / 22;
+    const l = Math.round(6 - t * 3 - (y > 28 ? sway : 0));
+    const r = Math.round(13 + t * 3 + (y > 28 ? sway : 0));
+    p.hline(l, r, y, 'violet');
+  }
+  p.recolorWhere((x, y, c) => c === 'violet' && x >= 13 && y >= 12, 'deep');
+  p.vline(12, 11, 32, 'frost');
+  p.hline(3 - sway, 16 + sway, 33, 'frost');
+  // 高领
+  p.rect(6, 8, 7, 3, 'violet').hline(6, 12, 8, 'frost');
+  // 面具和眼缝
+  p.ellipse(10.5, 4.5, 3.2, 4, 'cloud');
+  p.set(9, 2, 'white').set(9, 3, 'white');
+  p.hline(10, 12, 4, 'ink');
+  p.set(11, 6, 'violet').set(11, 7, 'violet');
+  p.set(10, 1, 'frost');
+  if (frame === 'cast') {
+    // 一挥袖：手臂伸向前方，袖口带出寒气
+    p.line(12, 12, 19, 9, 'violet').line(12, 13, 19, 10, 'violet').line(13, 14, 18, 12, 'deep');
+    p.set(20, 9, 'cloud').set(21, 8, 'cloud');
+    p.set(20, 12, 'frost').set(21, 14, 'frost').set(19, 15, 'white');
+  }
+  p.outline('ink');
+  return p.toImage();
+}
+
+/** 四枚时令铃：春（嫩绿）、夏（金）、秋（橙红）、冬（冰蓝） */
+function seasonBell(
+  body: ColorName,
+  shade: ColorName,
+  light: ColorName,
+  mark: ColorName,
+): RGBAImage {
+  const p = new Paint(10, 11);
+  p.rect(4, 0, 2, 2, 'ochre').set(4, 0, null);
+  p.ellipse(5, 5, 3.6, 3.6, body);
+  p.rect(1, 5, 8, 3, body);
+  p.hline(0, 9, 8, shade);
+  p.recolorWhere((x, y, c) => c === body && x >= 6 && y >= 3, shade);
+  p.set(3, 3, light).set(3, 4, light);
+  p.set(5, 5, mark);
+  p.rect(4, 9, 2, 1, 'bark');
+  p.outline('night');
+  return p.toImage();
+}
+
+/** 小寄居蟹：螺旋纹的壳里探出橙红色的小螃蟹（第 frame 帧，腿交替） */
+function hermit(frame: number, bell: boolean): RGBAImage {
+  const p = new Paint(16, 14);
+  const leg = frame % 2;
+  // 腿和钳子（在壳的右前方）
+  p.set(9, 12, 'red1')
+    .set(11, 12 - leg, 'red1')
+    .set(13, 12, 'red1');
+  p.rect(9, 9, 5, 3, 'red2');
+  p.rect(13, 8, 2, 2, 'red2').set(15, 8, 'red1');
+  // 眼睛长在小柄上；背着夏铃时眼睛发出冰蓝的光
+  p.vline(11, 6, 8, 'red1').vline(13, 6, 7, 'red1');
+  p.set(11, 5, bell ? 'sky' : 'ink').set(13, 5, bell ? 'sky' : 'ink');
+  if (bell) {
+    // 夏铃当壳，壳顶结出冰晶
+    p.ellipse(5.5, 8, 4.6, 4.6, 'gold');
+    p.rect(1, 9, 9, 3, 'gold');
+    p.hline(0, 10, 12, 'straw');
+    p.recolorWhere((x, y, c) => c === 'gold' && x >= 6 && y >= 7, 'straw');
+    p.set(3, 6, 'cream').set(3, 7, 'cream');
+    p.vline(4, 1, 4, 'frost').vline(5, 0, 4, 'cloud').vline(6, 2, 4, 'frost');
+    p.set(3, 3, 'frost').set(7, 3, 'frost').set(5, 0, 'white');
+  } else {
+    // 螺旋纹的壳
+    p.ellipse(5.5, 8.5, 4.6, 4.2, 'sand2');
+    p.ellipse(5, 8, 2.6, 2.4, 'sand3');
+    p.set(5, 8, 'sand1').set(6, 8, 'sand1').set(6, 9, 'sand1').set(4, 7, 'sand1');
+    p.recolorWhere((x, y, c) => c === 'sand2' && y >= 11, 'sand1');
+  }
+  p.outline('night');
+  return p.toImage();
+}
+
 /** 回回身后的光晕（半透明画，叠加发光） */
 function glow(r: number): RGBAImage {
   const s = Math.ceil(r * 2 + 2);
@@ -231,6 +321,17 @@ const frames: Record<string, RGBAImage> = {
   huihui_happy: huihui('happy'),
   huihui_worry: huihui('worry'),
   glow: glow(11),
+  shuangjiang_0: shuangjiang(0),
+  shuangjiang_1: shuangjiang(1),
+  shuangjiang_cast: shuangjiang('cast'),
+  bell_spring: seasonBell('leaf2', 'leaf1', 'leaf3', 'blush'),
+  bell_summer: seasonBell('gold', 'straw', 'cream', 'orange'),
+  bell_autumn: seasonBell('orange', 'red1', 'gold', 'wine'),
+  bell_winter: seasonBell('frost', 'mist', 'white', 'sky'),
+  hermit_0: hermit(0, false),
+  hermit_1: hermit(1, false),
+  hermit_bell_0: hermit(0, true),
+  hermit_bell_1: hermit(1, true),
 };
 
 export const npcSheet: ImageSheet = { key: 'npc', frames };

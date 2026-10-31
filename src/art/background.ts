@@ -362,3 +362,51 @@ export function nightSky(w: number, h: number, frame: number): RGBAImage {
   }
   return img;
 }
+
+/** 月亮：浅色圆盘、几个淡淡的环形山，外面一圈稀疏的光晕 */
+export function moonDisc(r: number): RGBAImage {
+  const size = Math.ceil(r * 4);
+  const img = newImage(size, size);
+  const c = size / 2;
+  const craters: Array<[number, number, number]> = [
+    [-0.35, -0.2, 0.28],
+    [0.3, 0.25, 0.22],
+    [0.1, -0.45, 0.15],
+  ];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = x + 0.5 - c;
+      const dy = y + 0.5 - c;
+      const d = Math.hypot(dx, dy);
+      const th = (BAYER4[(y % 4) * 4 + (x % 4)]! + 0.5) / 16;
+      if (d <= r) {
+        let col: ColorName = dx + dy < -r * 0.5 ? 'white' : 'cloud';
+        for (const [cx, cy, cr] of craters)
+          if (Math.hypot(dx / r - cx, dy / r - cy) < cr) col = 'mist';
+        put(img, x, y, col);
+      } else if (d <= r * 1.9 && (1 - (d - r) / (r * 0.9)) * 0.45 > th) put(img, x, y, 'slate');
+    }
+  }
+  return img;
+}
+
+/** 按调色板颜色替换（例如把白天的远景换成夜里的颜色） */
+export function recolor(img: RGBAImage, map: Partial<Record<ColorName, ColorName>>): RGBAImage {
+  const out: RGBAImage = { w: img.w, h: img.h, data: new Uint8ClampedArray(img.data) };
+  const lut = new Map<number, [number, number, number]>();
+  for (const [from, to] of Object.entries(map) as Array<[ColorName, ColorName]>) {
+    const [r, g, b] = hexToRgb(PALETTE[from]);
+    lut.set((r << 16) | (g << 8) | b, hexToRgb(PALETTE[to]));
+  }
+  const d = out.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (!d[i + 3]) continue;
+    const c = lut.get((d[i]! << 16) | (d[i + 1]! << 8) | d[i + 2]!);
+    if (c) {
+      d[i] = c[0];
+      d[i + 1] = c[1];
+      d[i + 2] = c[2];
+    }
+  }
+  return out;
+}

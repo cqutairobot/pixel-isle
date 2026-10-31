@@ -2,9 +2,11 @@ import Phaser from 'phaser';
 import type { Line } from '../content/dialog/line';
 import { currentLayout, type Layout } from '../platform/display';
 import { Bubble } from '../ui/bubble';
+import { Cinema } from '../ui/cinema';
 import { DialogBox, type DialogHooks } from '../ui/dialogBox';
 import { Hud } from '../ui/hud';
 import { KeyHint } from '../ui/keyHint';
+import { SkipHint } from '../ui/skipHint';
 import { Toast } from '../ui/toast';
 import { fitCamera } from './play/loop';
 
@@ -27,6 +29,8 @@ export class UIScene extends Phaser.Scene {
   toast!: Toast;
   keyHint!: KeyHint;
   bubble!: Bubble;
+  cinema!: Cinema;
+  skip!: SkipHint;
   /** 打开的模态界面，后打开的在上面 */
   private modals: Modal[] = [];
   private hudAlpha = 1;
@@ -42,6 +46,8 @@ export class UIScene extends Phaser.Scene {
     this.toast = new Toast(this);
     this.keyHint = new KeyHint(this);
     this.bubble = new Bubble(this);
+    this.cinema = new Cinema(this);
+    this.skip = new SkipHint(this);
     this.setLevelUI(false);
   }
 
@@ -90,9 +96,24 @@ export class UIScene extends Phaser.Scene {
     return box;
   }
 
+  /** 过场的上下黑边 */
+  letterbox(on: boolean): void {
+    this.cinema.letterbox(on);
+  }
+
+  /** 全屏深色遮罩（0–1） */
+  setCover(a: number): void {
+    this.cinema.setCover(a);
+  }
+
+  caption(text: string | null): void {
+    this.cinema.caption(text);
+  }
+
   override update(_t: number, deltaMs: number): void {
     const dt = Math.min(deltaMs, 100) / 1000;
-    const target = this.modals.some((m) => m.hidesHud) ? 0 : 1;
+    this.cinema.update(dt);
+    const target = this.cinema.letterboxed || this.modals.some((m) => m.hidesHud) ? 0 : 1;
     this.hudAlpha += (target - this.hudAlpha) * (1 - Math.exp(-dt * 14));
     this.hud.root.setAlpha(this.hudAlpha);
     this.hud.update(dt);

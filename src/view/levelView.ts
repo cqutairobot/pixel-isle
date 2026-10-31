@@ -54,6 +54,8 @@ interface Bob {
  * 装饰（房子、钟楼、椰子树……）、冰霜脚印。
  */
 export class LevelView {
+  /** 所有装饰的精灵（过场里要用：序章藏起冰雕、给灯笼加光晕） */
+  readonly decos: Array<{ kind: string; img: Phaser.GameObjects.Image }> = [];
   private surfaces: Phaser.GameObjects.TileSprite[] = [];
   private anims: Anim[] = [];
   private bobs: Bob[] = [];
@@ -135,6 +137,7 @@ export class LevelView {
       .setOrigin(d.ox ?? 0, 1)
       .setDepth(d.depth ?? -8)
       .setFlipX(!!e.flip);
+    this.decos.push({ kind: e.kind, img });
     if (frames.length > 1)
       this.anims.push({ img, frames, fps: d.fps ?? 2, phase: (e.at[0] * 0.37) % 1 });
     if (e.kind === 'boat' || e.kind === 'post')

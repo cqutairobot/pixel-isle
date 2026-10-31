@@ -16,9 +16,12 @@ const route = location.hash.slice(1);
 
 function bootTarget(): BootTarget {
   if (route === 'gym' || params.get('scene') === 'gym') return { scene: 'gym' };
+  if (route === 'prologue') return { scene: 'level', data: { levelId: '1-1', mode: 'prologue' } };
   const level = params.get('level') ?? (/^\d+-\d+$/.test(route) ? route : '1-1');
   const cp = Number(params.get('cp') ?? 0);
-  return { scene: 'level', data: { levelId: level, checkpoint: cp || undefined } };
+  // ?intro=0：不播放开场过场（测试用）
+  const intro = params.get('intro') !== '0';
+  return { scene: 'level', data: { levelId: level, checkpoint: cp || undefined, intro } };
 }
 window.addEventListener('hashchange', () => location.reload());
 
