@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/engine';
-import { CUTSCENES } from '../content/cutscenes/1-1';
 import { END_STATES } from '../content/cutscenes/endStates';
-import { ADOU_SOLVED, NPC_TALK } from '../content/dialog/1-1';
+import { ADOU_SOLVED } from '../content/dialog/1-1';
+import { LEVEL_CONTENT, PERSISTENT_FLAGS, type LevelContent } from '../content/levelContent';
 import type { Line } from '../content/dialog/line';
 import { LEVELS } from '../content/levels';
 import { HINTS, MENU_TEXT, UI_TEXT } from '../content/text';
@@ -69,6 +69,7 @@ export class LevelScene extends Phaser.Scene {
   world!: World;
   private level!: ParsedLevel;
   private levelId = '1-1';
+  private content!: LevelContent;
   private loop = new FixedStepLoop(() => this.simStep());
   private devices!: InputDevices;
   private hero!: HeroView;
@@ -117,6 +118,7 @@ export class LevelScene extends Phaser.Scene {
 
   init(data: LevelSceneData): void {
     this.levelId = data.levelId && LEVELS[data.levelId] ? data.levelId : '1-1';
+    this.content = LEVEL_CONTENT[this.levelId] ?? LEVEL_CONTENT['1-1']!;
     this.hintsShown = new Set();
     this.sayQueue = [];
     this.story = null;
@@ -144,6 +146,8 @@ export class LevelScene extends Phaser.Scene {
         autoRun: settings.autoRun,
         assist: settings.assist,
         foundGlass: this.save.levels[this.levelId]?.glass ?? [],
+        // 拿到过的装备（海星）一直带着；再玩 1-2 时不再重播开场
+        flags: PERSISTENT_FLAGS.filter((f) => this.save.flags.includes(f)),
       },
       VIEW_W,
       VIEW_H,
@@ -227,14 +231,20 @@ export class LevelScene extends Phaser.Scene {
     else this.cameras.main.fadeIn(500, ...FADE);
     audio.music.play(this.level.music ?? 'beach', 1.5);
     audio.music.ambience('sea');
-    if (!cp && data.intro !== false && CUTSCENES.intro) {
-      this.playCutscene('intro', () => {
+    const c = this.content;
+    const startKey = c.startKey;
+    if (!cp && data.intro !== false && c.intro && c.cutscenes[c.intro]) {
+      this.playCutscene(c.intro, () => {
         setFlag(this.save, 'introSeen');
         writeSave(this.save);
-        this.ui.cinema.banner(UI_TEXT.chapter, UI_TEXT.levelTitle);
-        this.time.delayedCall(2600, () => this.ui.keyHint.show('move', this.scheme()));
+        this.ui.cinema.banner(UI_TEXT.chapter, c.banner);
+        if (startKey)
+          this.time.delayedCall(2600, () => this.ui.keyHint.show(startKey, this.scheme()));
       });
-    } else this.time.delayedCall(700, () => this.ui.keyHint.show('move', this.scheme()));
+    } else if (startKey)
+      this.time.delayedCall(700, () => this.ui.keyHint.show(startKey, this.scheme()));
+    else if (!cp)
+      this.time.delayedCall(600, () => this.ui.cinema.banner(UI_TEXT.chapter, c.banner));
   }
 
   /** 序章：夜色滤镜、点亮的灯笼、藏起白天才有的人和东西 */
@@ -376,6 +386,12 @@ export class LevelScene extends Phaser.Scene {
       .then(() => this.scene.restart({ levelId: this.levelId, intro: false }));
   }
 
+  private gotoLevel(id: string): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    void this.ui.transition.run('bell', true, 0.7).then(() => this.scene.restart({ levelId: id }));
+  }
+
   private gotoTitle(): void {
     if (this.leaving) return;
     this.leaving = true;
@@ -423,7 +439,21 @@ export class LevelScene extends Phaser.Scene {
       else done();
     } else if (w.pendingTrigger) {
       const id = w.pendingTrigger;
-      this.playCutscene(id, () => w.resolveTrigger(END_STATES[id] ?? {}));
+      this.playCutscene(id, () => {
+        const hadEquip = w.equipment.length > 0;
+        const end = END_STATES[id] ?? {};
+        w.resolveTrigger(end);
+        // 拿到的装备记进存档
+        const keep = (end.flags ?? []).filter((f) => PERSISTENT_FLAGS.includes(f));
+        if (keep.length) {
+          for (const f of keep) setFlag(this.save, f);
+          writeSave(this.save);
+        }
+        if (!hadEquip && w.equipment.length) {
+          this.ui.hud.setEquip(true, true);
+          this.time.delayedCall(500, () => this.ui.keyHint.show('throw', this.scheme(), 6));
+        }
+      });
     }
   }
 
@@ -432,7 +462,7 @@ export class LevelScene extends Phaser.Scene {
    * 没有分镜的阻塞触发直接套用结束状态。
    */
   private playCutscene(id: string, resolve: () => void): void {
-    const script = CUTSCENES[id];
+    const script = this.content.cutscenes[id];
     this.story = id;
     if (!script) {
       this.endStory(resolve);
@@ -470,6 +500,8 @@ export class LevelScene extends Phaser.Scene {
       d.finish();
       this.director = null;
       this.ents.heroAt = null;
+      // 过场里换成演出精灵的 NPC 回到原位
+      if (this.mode === 'play') this.ents.setNpcsVisible(true);
       this.ui.skip.hide();
       this.endStory(resolve);
       if (this.skipping) {
@@ -524,6 +556,12 @@ export class LevelScene extends Phaser.Scene {
 
   /** 过场里关卡场景特有的演出 */
   private onSignal(name: string): void {
+    // npc:<编号>:hide / show：过场里把关卡里的 NPC 换成演出精灵
+    const npc = /^npc:(\w+):(hide|show)$/.exec(name);
+    if (npc) {
+      this.ents.setNpcVisible(npc[1]!, npc[2] === 'show');
+      return;
+    }
     if (name === 'lightsOut') {
       // 灯火闪两下就灭了
       for (const g of this.lanternGlows)
@@ -577,7 +615,7 @@ export class LevelScene extends Phaser.Scene {
 
   /** 和 NPC 交谈：第一次说 first（记进存档），之后说 again；阿豆在风铃解开后说 after */
   private talkLines(id: string): readonly Line[] {
-    const talk = NPC_TALK[id];
+    const talk = this.content.talk[id];
     if (!talk) return [];
     if (id === 'adou' && this.world.flags.has('chimesSolved') && talk.after) return talk.after;
     const flag = `talk:${id}`;
@@ -642,9 +680,11 @@ export class LevelScene extends Phaser.Scene {
           break;
         case 'enemyActivate':
           if (!w.flags.has('huihui')) break;
-          if (e.kind === 'urchin' || e.kind === 'urchinHang') this.hint('urchin');
-          else if (e.kind === 'gull') this.hint('gull');
-          else this.hint('crab');
+          // 刺海胆的提示等拿到海星以后再说（开场前隧道里那只就已经在画面边上了）
+          if (e.kind === 'urchin' || e.kind === 'urchinHang') {
+            if (w.equipment.length) this.hint('urchin');
+          } else if (e.kind === 'gull') this.hint('gull');
+          else if (this.content.crabHint) this.hint('crab');
           break;
         case 'urchinShake':
           this.hint('hang');
@@ -740,7 +780,10 @@ export class LevelScene extends Phaser.Scene {
         case 'checkpoint':
           audio.music.jingle('checkpoint', 'duck');
           this.ui.toast.show(UI_TEXT.checkpoint);
-          if (e.index === 2) this.time.delayedCall(900, () => this.hint('cp2'));
+          {
+            const cpHint = this.content.checkpointHints?.[e.index];
+            if (cpHint) this.time.delayedCall(900, () => this.hint(cpHint));
+          }
           break;
         case 'chimeSolved':
           this.ents.emote('adou', 'note', 1.6);
@@ -752,7 +795,7 @@ export class LevelScene extends Phaser.Scene {
           audio.music.jingle('clear', 'end');
           this.clearT = 0;
           this.ui.keyHint.done('move');
-          this.hint(this.levelId === '1-1' ? 'gate' : 'gate2');
+          this.hint(this.content.clearHint);
           break;
       }
     }
@@ -813,7 +856,7 @@ export class LevelScene extends Phaser.Scene {
     const tally = new Tally(
       this.ui,
       {
-        title: UI_TEXT.tallyTitle,
+        title: this.content.tallyTitle,
         frames: w.stats.frames,
         bestFrames: prev,
         newRecord,
@@ -829,11 +872,19 @@ export class LevelScene extends Phaser.Scene {
           this.restartLevel();
           return;
         }
-        // 继续：第 2 关还在做，先显示"制作中"，然后回到标题
+        // 继续：去下一关（章节地图在 M2-b）；下一关还在做的话先显示"制作中"，然后回到标题
         this.ui.closeAll();
+        const next = this.content.next;
+        if (next) {
+          this.gotoLevel(next);
+          return;
+        }
         this.ui.openModal(
-          new InfoCard(this.ui.host, UI_TEXT.tallyTitle, [UI_TEXT.comingSoon], () =>
-            this.gotoTitle(),
+          new InfoCard(
+            this.ui.host,
+            this.content.tallyTitle,
+            [this.content.comingSoon ?? UI_TEXT.comingSoon],
+            () => this.gotoTitle(),
           ),
         );
       },

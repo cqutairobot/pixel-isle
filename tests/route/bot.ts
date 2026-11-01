@@ -36,6 +36,16 @@ export class Bot {
     return this.world.player;
   }
 
+  /** 上一帧按住的键 */
+  get held(): number {
+    return this.prevHeld;
+  }
+
+  /** 如果上一帧还按着跳跃（或攻击），先松开一帧，保证下一次按下能算"按下" */
+  release(): void {
+    if (this.prevHeld & (BTN.jump | BTN.attack)) this.step(0);
+  }
+
   /** 主角中心所在的格子列 */
   get col(): number {
     return this.p.body.centerX / TILE;
@@ -159,9 +169,9 @@ export class Bot {
     }
     // 前面没地了（坑、海水），而且掉下去 3 格以内也没地：按缝隙宽度和落点高低决定按多久
     if (!this.groundAhead(2, 3)) return this.gapHold(dir);
-    // 螃蟹靠近
+    // 螃蟹靠近（浑身是刺的不能踩，由路线脚本先用海星打掉）
     for (const e of w.enemies) {
-      if (!e.alive || !e.active) continue;
+      if (!e.alive || !e.active || e.spec.spiky) continue;
       const ex = e.body.centerX;
       const dist = (ex - (dir > 0 ? b.right : b.x)) * dir;
       if (dist > 0 && dist < 34 && Math.abs(e.body.bottom - b.bottom) < 20) return 14;

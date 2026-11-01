@@ -340,7 +340,9 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private continueGame(): void {
-    this.leave('level', { levelId: '1-1', intro: !this.save.flags.includes('introSeen') });
+    // 通关过 1-1 就直接去 1-2（章节地图在 M2-b）
+    if (this.save.levels['1-1']?.cleared) this.leave('level', { levelId: '1-2' });
+    else this.leave('level', { levelId: '1-1', intro: !this.save.flags.includes('introSeen') });
   }
 
   private newGame(): void {

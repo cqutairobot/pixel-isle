@@ -220,3 +220,59 @@ test('掉进海里扣光心：回到检查点后画面恢复，不会一直黑�
   expect(await page.evaluate(cameraDark)).toBe(false);
   expect(errors).toEqual([]);
 });
+
+test('第 2 关：开场借到海星（长按跳过），扔海星打倒隧道里的刺海胆，没有报错', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/#1-2');
+  await page.waitForFunction(() => (window.__level?.world.frame ?? 0) > 20, null, {
+    timeout: 60_000,
+  });
+  type L12 = {
+    story: string | null;
+    world: {
+      flags: Set<string>;
+      waiting: boolean;
+      hearts: number;
+      player: { body: { x: number } };
+      enemies: Array<{ kind: string; alive: boolean; body: { centerX: number } }>;
+    };
+  };
+  // 往右走到第 9 列：开场过场开始
+  await page.keyboard.down('KeyD');
+  await page.waitForFunction(() => !!(window.__level as unknown as L12).story, null, {
+    timeout: 20_000,
+  });
+  await page.keyboard.up('KeyD');
+  // 长按 Esc 跳过
+  await page.keyboard.down('Escape');
+  await page.waitForFunction(
+    () => {
+      const l = window.__level as unknown as L12;
+      return l.world.flags.has('starfish') && !l.story;
+    },
+    null,
+    { timeout: 20_000 },
+  );
+  await page.keyboard.up('Escape');
+  // 走进隧道（离刺海胆 5 格左右，在海星的射程里），朝它扔海星
+  await page.keyboard.down('KeyD');
+  await page.waitForFunction(
+    () => (window.__level as unknown as L12).world.player.body.x > 18 * 16,
+    null,
+    { timeout: 20_000 },
+  );
+  await page.keyboard.up('KeyD');
+  await page.waitForTimeout(300);
+  await page.keyboard.press('KeyJ');
+  await page.waitForFunction(
+    () =>
+      (window.__level as unknown as L12).world.enemies.some(
+        (e) => e.kind === 'urchin' && e.body.centerX < 30 * 16 && !e.alive,
+      ),
+    null,
+    { timeout: 10_000 },
+  );
+  await page.screenshot({ path: 'test-results/level-1-2.png' });
+  expect(await page.evaluate(() => (window.__level as unknown as L12).world.hearts)).toBe(3);
+  expect(errors).toEqual([]);
+});

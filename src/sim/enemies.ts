@@ -70,7 +70,7 @@ export class Enemy {
   cooldown = 0;
   private baseY: number;
   private diveTargetY = 0;
-  /** 落地后不再爬（倒挂刺海胆掉下来以后） */
+  /** 不爬（原地不动的刺海胆；倒挂刺海胆掉下来以后） */
   private still = false;
   private spawnX: number;
   private spawnY: number;
@@ -81,6 +81,8 @@ export class Enemy {
     readonly kind: EnemyKind,
     col: number,
     row: number,
+    /** 一直待在原地（只对走路的敌人有意义） */
+    private readonly fixed = false,
   ) {
     const spec = ENEMY_SPECS[kind];
     this.spawnX = col * TILE + Math.floor((TILE - spec.w) / 2);
@@ -94,6 +96,7 @@ export class Enemy {
     this.body = new Body(this.spawnX, this.spawnY, spec.w, spec.h);
     this.baseY = this.spawnY;
     this.mode = this.initialMode();
+    this.still = fixed;
   }
 
   private initialMode(): EnemyMode {
@@ -121,7 +124,7 @@ export class Enemy {
     this.mode = this.initialMode();
     this.modeFrames = 0;
     this.cooldown = 0;
-    this.still = false;
+    this.still = this.fixed;
     this.bobPhase = 0;
   }
 

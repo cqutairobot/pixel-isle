@@ -15,7 +15,7 @@ import { LEVELS } from '../src/content/levels';
 import { CHIME_LAYOUT } from '../src/sim/chimes';
 import { TILE } from '../src/sim/constants';
 import { T_WATER } from '../src/sim/grid';
-import { parseLevel } from '../src/sim/level';
+import { parseLevel, themeAt } from '../src/sim/level';
 import { decodeInputs, resolveHeadless, type Replay } from '../src/sim/replay';
 import { cloneTuning, PRESETS } from '../src/sim/tuning';
 import { World } from '../src/sim/world';
@@ -50,13 +50,21 @@ const sky = skyGradient(W, H, [
 full.blit(sky, 0, 0);
 // 装饰（在瓦片后面）
 const world = new World(level, cloneTuning(PRESETS.A.tuning), { autoRun: false }, 384, 216);
+const fronts: Array<() => void> = [];
 for (const e of level.entities) {
   if (e.type !== 'deco' || e.kind === 'footprints') continue;
   const d = DECO[e.kind];
   if (!d) continue;
+  const oy = d.oy ?? 1;
   const x = e.at[0] * TILE + (d.ox !== undefined ? TILE / 2 : 0);
-  put(d.frames[0]!, x, (e.at[1] + 1) * TILE + (d.dy ?? 0), d.ox ?? 0, 1, 1, !!e.flip);
+  const draw = () =>
+    put(d.frames[0]!, x, (e.at[1] + oy) * TILE + (d.dy ?? 0), d.ox ?? 0, oy, 1, !!e.flip);
+  // 前景装饰最后画（半透明），其余的画在瓦片后面
+  if (d.front || e.front) fronts.push(draw);
+  else draw();
 }
+for (const t of world.props.trees)
+  put(`grove/tree_${Math.min(3, t.coconuts)}_0`, t.x, t.y, 33 / 64, 1);
 for (const cp of world.checkpoints)
   put('deco/checkpoint_off', cp.col * TILE + TILE / 2, (cp.row + 1) * TILE, 6 / 22);
 const goal = level.markers.find((m) => m.kind === 'goal');
@@ -78,18 +86,24 @@ const NPC: Record<string, string> = {
   haishen: 'npc/haishen_idle_0',
   adou: 'npc/adou_idle_0',
   bailu: 'npc/bailu_idle_0',
+  daishu: 'npc/daishu_idle_0',
 };
 for (const n of world.npcs) if (NPC[n.id]) put(NPC[n.id]!, n.x, n.y, 0.5, 1, 1, n.facing < 0);
-for (const e of world.enemies)
-  put(
-    e.kind === 'blueClaw' ? 'enemy/blue_walk_0' : 'enemy/crab_walk_0',
-    e.body.centerX,
-    e.body.bottom,
-    0.5,
-    1,
-    1,
-    true,
-  );
+for (const e of world.enemies) {
+  if (e.kind === 'gull') put('enemy/gull_0', e.body.centerX, e.body.centerY, 0.5, 0.5, 1, true);
+  else if (e.kind === 'urchinHang') put('enemy/urchin_hang', e.body.centerX, e.body.y - 2, 0.5, 0);
+  else if (e.kind === 'urchin') put('enemy/urchin_0', e.body.centerX, e.body.bottom, 0.5, 1);
+  else
+    put(
+      e.kind === 'blueClaw' ? 'enemy/blue_walk_0' : 'enemy/crab_walk_0',
+      e.body.centerX,
+      e.body.bottom,
+      0.5,
+      1,
+      1,
+      true,
+    );
+}
 for (const b of world.blocks.list) {
   const name =
     b.kind === 'brick'
@@ -115,15 +129,17 @@ for (const it of world.items.list) {
   put(name, it.body.centerX, it.body.bottom + 1, 0.5, 1);
 }
 put('hero/idle_0', level.spawn.x + 5, level.spawn.y + 14, 0.5, 1);
-// 海水（半透明，盖在最上面）
+// 海水（半透明，盖在最上面）；椰林里的小溪偏绿
 for (let r = 0; r < g.rows; r++)
   for (let c = 0; c < g.cols; c++) {
     if (g.get(c, r) !== T_WATER) continue;
     const surface = g.get(c, r - 1) !== T_WATER;
-    full.blit(waterSheet.frames[surface ? 'surface_0' : 'body']!, c * TILE, r * TILE, {
+    const pre = themeAt(level, c) === 'grove' ? 'stream_' : '';
+    full.blit(waterSheet.frames[`${pre}${surface ? 'surface_0' : 'body'}`]!, c * TILE, r * TILE, {
       alpha: 0.85,
     });
   }
+for (const f of fronts) f();
 // 回放轨迹
 const traces: Array<[string, 'red2' | 'gold']> = [
   [`tests/replays/${id}-any.json`, 'red2'],

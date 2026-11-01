@@ -481,6 +481,38 @@ const shuangjiang: Character = {
   },
 };
 
+// —— 大暑：晒得黝黑的圆脸、额头绑着白毛巾（脑后打个结）、橙色背心 ——
+const daishu: Character = {
+  face: { eyeL: [12, 17], eyeR: [19, 17], mouth: [16, 22], brow: 'bark', lip: 'wine' },
+  outline: 'ink',
+  back(p) {
+    // 光着的肩膀，橙色背心
+    p.ellipse(16, 34, 15, 9, 'skin1');
+    p.ellipse(16, 35, 10, 9, 'orange');
+    p.recolorWhere((x, y, c) => c === 'orange' && x >= 20 && y >= 27, 'red2');
+    p.set(13, 27, 'gold').set(14, 27, 'gold').set(12, 28, 'gold');
+    neck(p, 'skin1');
+    // 圆圆的大脸
+    p.ellipse(16.5, 17, 8.8, 8.4, 'skin1');
+    p.recolorWhere((x, y, c) => c === 'skin1' && y >= 22 && y < 26 && x <= 11, 'ochre');
+  },
+  front(p) {
+    // 短短的黑发，额头绑着白毛巾
+    p.ellipse(16.5, 8.5, 8.4, 3.2, 'night');
+    p.rect(8, 10, 17, 3, 'cloud');
+    p.hline(8, 24, 10, 'white');
+    p.set(16, 12, 'mist').set(20, 12, 'mist');
+    // 毛巾在脑后打的结
+    p.set(7, 10, 'cloud').set(6, 11, 'cloud').set(5, 12, 'cloud').set(6, 13, 'mist');
+    p.set(7, 13, 'cloud').set(5, 10, 'white');
+  },
+  exprs: {
+    normal: { eyes: 'open', mouth: 'smile' },
+    sweat: { eyes: 'narrow', mouth: 'grin', sweat: true },
+    laugh: { eyes: 'happy', mouth: 'open' },
+  },
+};
+
 export const PORTRAITS: Record<string, Character> = {
   xiaoman,
   huihui,
@@ -489,6 +521,7 @@ export const PORTRAITS: Record<string, Character> = {
   bailu,
   grandpa,
   shuangjiang,
+  daishu,
 };
 
 function draw(c: Character, e: Expr, variant: 'base' | 'blink' | 'talk'): RGBAImage {

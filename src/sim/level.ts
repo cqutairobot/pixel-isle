@@ -62,6 +62,8 @@ export interface LevelDef {
   entities?: EntityDef[];
   /** 练习场规则：不扣心，掉坑后很快回来 */
   practice?: boolean;
+  /** 进这一关时就有的剧情标记（例如回回从第 2 关起一直跟着：huihui） */
+  flags?: string[];
 }
 
 export interface Marker {
@@ -85,6 +87,7 @@ export interface ParsedLevel {
   themes: Array<{ from: number; theme: string }>;
   music: string | null;
   practice: boolean;
+  flags: string[];
 }
 
 /** 通用图例，见 PLAN.md §2.5 与 docs/levels/1-1.md §2 */
@@ -113,6 +116,7 @@ export const BASE_LEGEND: Record<string, LegendEntry> = {
   '-': { tile: T_ONEWAY, material: MAT_LEAF },
   T: { tile: T_SOLID, material: MAT_BARK },
   u: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'urchin' } },
+  v: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'urchin', still: 1 } },
   U: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'urchinHang' } },
   w: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'gull' } },
   C: { tile: T_EMPTY, marker: 'checkpoint' },
@@ -197,6 +201,7 @@ export function parseLevel(def: LevelDef): ParsedLevel {
     markers,
     entities: def.entities ?? [],
     themes: def.themes ?? [],
+    flags: def.flags ?? [],
     music: def.music ?? null,
     practice: def.practice ?? false,
   };

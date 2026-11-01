@@ -154,7 +154,7 @@ export class LevelView {
 
   private addDeco(e: Extract<EntityDef, { type: 'deco' }>): void {
     if (e.kind === 'footprints') {
-      this.addFootprints(e.at[0], 40);
+      this.addFootprints(e.at[0], e.at[1], 40);
       return;
     }
     const d = DECO[e.kind];
@@ -179,13 +179,13 @@ export class LevelView {
       this.bobs.push({ img, baseY: y, phase: e.at[0] * 0.7 });
   }
 
-  /** 从 col 开始往右 len 格，沿地面画一串冰霜脚印，越往后越淡 */
-  private addFootprints(col: number, len: number): void {
+  /** 从 col 开始往右 len 格，沿地面（从 row 往下找到的第一个能站的面）画一串冰霜脚印，越往后越淡 */
+  private addFootprints(col: number, row: number, len: number): void {
     const g = this.level.grid;
     let left = true;
     for (let c = col; c < col + len && c < g.cols; c++) {
       let top = -1;
-      for (let r = 0; r < g.rows; r++) {
+      for (let r = Math.max(0, row - 1); r < g.rows; r++) {
         const t = g.get(c, r);
         if (t === T_SOLID || t === T_ONEWAY) {
           top = r;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PORTRAITS } from '../src/art/portraits';
 import { CUTSCENES } from '../src/content/cutscenes/1-1';
+import { CUTSCENES_12 } from '../src/content/cutscenes/1-2';
 import { END_STATES } from '../src/content/cutscenes/endStates';
 import {
   ADOU_SOLVED,
@@ -10,8 +11,10 @@ import {
   NPC_TALK,
   PROLOGUE,
 } from '../src/content/dialog/1-1';
+import { NPC_TALK_12, STARFISH_OPENING } from '../src/content/dialog/1-2';
 import type { Line } from '../src/content/dialog/line';
 import { level11 } from '../src/content/levels/1-1';
+import { level12 } from '../src/content/levels/1-2';
 import { SPEAKERS } from '../src/content/speakers';
 import { Director, type DirectorHost } from '../src/scenes/cutscene/director';
 import { T_ONEWAY, T_SOLID } from '../src/sim/grid';
@@ -24,6 +27,8 @@ const ALL_LINES: Line[] = [
   ...BELLTOWER.flat(),
   ...BAILU_MEET,
   ...PROLOGUE.flat(),
+  ...Object.values(NPC_TALK_12).flatMap((n) => [...n.first, ...n.again, ...(n.after ?? [])]),
+  ...STARFISH_OPENING.flat(),
 ];
 
 /** 什么都接受的假对象：任何属性、任何调用都返回它自己（代替 Phaser 的场景和精灵） */
@@ -101,7 +106,21 @@ describe('第 1 关的剧情内容', () => {
     }
   });
 
-  for (const [id, script] of Object.entries(CUTSCENES)) {
+  it('1-2：开场是唯一的阻塞触发，有分镜和结束状态；拿到海星以后不再重播', () => {
+    const level = parseLevel(level12);
+    const blocking = level12.entities!.filter(
+      (e) => e.type === 'trigger' && e.blocking !== false,
+    ) as Array<{ id: string; unless?: string }>;
+    expect(blocking.map((t) => t.id)).toEqual(['starfish']);
+    expect(blocking[0]!.unless).toBe('starfish');
+    expect(CUTSCENES_12.starfish).toBeDefined();
+    const end = END_STATES.starfish!;
+    expect(end.flags).toContain('starfish');
+    const [c, r] = end.player!;
+    expect(level.grid.get(c, r + 1)).toBe(T_SOLID);
+  });
+
+  for (const [id, script] of [...Object.entries(CUTSCENES), ...Object.entries(CUTSCENES_12)]) {
     it(`过场「${id}」：一直看到结尾不会卡住`, async () => {
       const d = new Director(host(true));
       let done = false;

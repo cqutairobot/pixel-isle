@@ -9,4 +9,6 @@ export const END_STATES: Record<string, EndState> = {
   belltower: { flags: ['huihui', 'belltower'], player: [67, 11], facing: 1 },
   // 小满走到白露跟前（第 145 列）
   bailu: { flags: ['metBailu'], player: [145, 13], facing: 1 },
+  // 1-2 开场：白露把回旋海星借给小满，小满还站在原地（第 9 列）
+  starfish: { flags: ['starfish'], player: [9, 27], facing: 1 },
 };

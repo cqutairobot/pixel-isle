@@ -1,4 +1,5 @@
 import { allDialogText } from './dialog/1-1';
+import { allDialogText12 } from './dialog/1-2';
 import { LEVELS } from './levels';
 import { speakerNames } from './speakers';
 import { CONTROLS_TEXT, CREDITS, HINTS, KEY_HINTS, MENU_TEXT, UI_TEXT } from './text';
@@ -20,6 +21,7 @@ export function allText(): string[] {
     ...CREDITS.flat(),
     ...Object.values(LEVELS).map((l) => l.name),
     ...allDialogText(),
+    ...allDialogText12(),
     ...speakerNames(),
     ASCII,
     SYMBOLS,

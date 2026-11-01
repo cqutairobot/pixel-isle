@@ -29,3 +29,21 @@ describe('第 1 关回放', () => {
     expect(w.state).toBe('clear');
   });
 });
+
+describe('第 2 关回放', () => {
+  it('通关路线能走到铃门', () => {
+    const r = load('1-2-any');
+    const w = newWorld(r.level);
+    playInputs(w, decodeInputs(r.frames), END_STATES);
+    expect(w.flags.has('starfish')).toBe(true);
+    expect(w.state).toBe('clear');
+  });
+
+  it('全收集路线拿到 3 枚海玻璃并通关', () => {
+    const r = load('1-2-full');
+    const w = newWorld(r.level);
+    playInputs(w, decodeInputs(r.frames), END_STATES);
+    expect(w.stats.glass).toEqual([true, true, true]);
+    expect(w.state).toBe('clear');
+  });
+});

@@ -149,7 +149,7 @@ export class World implements PlayerEnv {
     this.foundGlass = options.foundGlass ?? [];
     this.blocks = new BlockSet(level.grid);
     this.items = new ItemSet(level.grid);
-    for (const f of options.flags ?? []) this.flags.add(f);
+    for (const f of [...level.flags, ...(options.flags ?? [])]) this.flags.add(f);
     this.build();
     this.settle();
     this.camera.snap(this.player);
@@ -182,7 +182,9 @@ export class World implements PlayerEnv {
           break;
         }
         case 'enemy':
-          this.enemies.push(new Enemy(enemyId++, kind as EnemyKind, m.col, m.row));
+          this.enemies.push(
+            new Enemy(enemyId++, kind as EnemyKind, m.col, m.row, m.data?.still === 1),
+          );
           break;
         case 'checkpoint':
           cps.push({ col: m.col, row: m.row });

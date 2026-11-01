@@ -171,6 +171,11 @@ export class EntityViews {
     for (const img of this.npcs.values()) img.setVisible(on);
   }
 
+  /** 过场里某个 NPC 换成演出精灵时，先把关卡里的那个藏起来 */
+  setNpcVisible(id: string, on: boolean): void {
+    this.npcs.get(id)?.setVisible(on);
+  }
+
   /** 过场里的回回（演出精灵）换成这个：直接出现在 (x, y)，不再播放登场动画 */
   placeHuihui(x: number, y: number): void {
     this.huiShown = true;
