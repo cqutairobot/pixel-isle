@@ -93,6 +93,8 @@ export type SimEvent =
   | { type: 'urchinLand'; id: number; x: number; y: number }
   | { type: 'gullAlert'; id: number; x: number; y: number }
   | { type: 'gullDive'; id: number; x: number; y: number }
+  /** 海星打到椰子树的树冠（没有椰子了也会沙沙响一下） */
+  | { type: 'treeHit'; id: number; x: number; y: number; empty: boolean }
   | { type: 'coconutDrop'; id: number; x: number; y: number }
   | { type: 'coconutBounce'; id: number; x: number; y: number }
   | { type: 'coconutBreak'; id: number; x: number; y: number };

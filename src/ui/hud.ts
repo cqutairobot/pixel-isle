@@ -9,6 +9,8 @@ const HEART_X = 6;
 const HEART_Y = 6;
 const HEART_STEP = 12;
 const SHELL_Y = 19;
+/** 装备格（贝壳计数下面） */
+const EQUIP_Y = 31;
 
 interface Digit {
   img: Phaser.GameObjects.Image;
@@ -20,9 +22,10 @@ interface Digit {
 }
 
 /**
- * HUD（PLAN §6.10）：左上角的心和贝壳计数，右上角的 3 个海玻璃槽。
+ * HUD（PLAN §6.10）：左上角的心、贝壳计数和装备格，右上角的 3 个海玻璃槽。
  * - 掉心：心碎成两半并抖动；回血：心填满并弹一下；只剩 1 颗心：心跳 + 画面四角暗角。
  * - 贝壳计数像里程表一样一位一位滚上去，图标跟着弹一下。
+ * - 装备格：拥有装备后出现；海星飞出去时图标变暗，接住时弹一下，按切换键时晃一下。
  */
 export class Hud {
   readonly root: Phaser.GameObjects.Container;
@@ -42,6 +45,11 @@ export class Hud {
   private vignette: Phaser.GameObjects.Image;
   private time = 0;
   private shakeT = 0;
+  private equipSlot: Phaser.GameObjects.Image;
+  private equipIcon: Phaser.GameObjects.Image;
+  private equipSpring = new Spring(1, 700, 14);
+  private equipTilt = new Spring(0, 520, 9);
+  private equipOut = false;
 
   constructor(private scene: Phaser.Scene) {
     this.root = scene.add.container(0, 0).setDepth(10);
@@ -62,8 +70,41 @@ export class Hud {
       this.glassSprings.push(new Spring(1, 700, 16));
       this.root.add(img);
     }
+    this.equipSlot = scene.add
+      .image(HEART_X + 9, EQUIP_Y + 9, ATLAS, 'equip/slot')
+      .setOrigin(0.5, 0.5)
+      .setVisible(false);
+    this.equipIcon = scene.add
+      .image(HEART_X + 9, EQUIP_Y + 9, ATLAS, 'equip/star_0')
+      .setOrigin(0.5, 0.5)
+      .setVisible(false);
+    this.root.add([this.equipSlot, this.equipIcon]);
     this.setMaxHearts(3, 3);
     this.setShells(0, true);
+  }
+
+  /** 有没有装备（拿到海星时 pop 出来） */
+  setEquip(on: boolean, pop = false): void {
+    const was = this.equipSlot.visible;
+    this.equipSlot.setVisible(on);
+    this.equipIcon.setVisible(on);
+    if (on && !was && pop) this.equipSpring.set(0, 9);
+    if (!on) this.setEquipOut(false);
+  }
+
+  /** 海星飞出去了：图标变暗 */
+  setEquipOut(out: boolean): void {
+    this.equipOut = out;
+  }
+
+  /** 接住海星：图标弹一下 */
+  equipCatch(): void {
+    this.equipSpring.set(1.5);
+  }
+
+  /** 切换装备（现在只有一件）：图标晃一下 */
+  equipWiggle(): void {
+    this.equipTilt.set(0, 9);
   }
 
   setVisible(v: boolean): void {
@@ -243,5 +284,13 @@ export class Hud {
         : Math.max(0, this.vignette.alpha - dt * 2),
     );
     this.glassSlots.forEach((g, i) => g.setScale(this.glassSprings[i]!.update(dt)));
+    // 装备格
+    const es = this.equipSpring.update(dt);
+    this.equipSlot.setScale(es);
+    const target = this.equipOut ? 0.3 : 1;
+    this.equipIcon
+      .setScale(es)
+      .setRotation(this.equipTilt.update(dt))
+      .setAlpha(this.equipIcon.alpha + (target - this.equipIcon.alpha) * Math.min(1, dt * 12));
   }
 }

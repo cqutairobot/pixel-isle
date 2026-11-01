@@ -106,6 +106,123 @@ function crab(o: Partial<CrabOpts>): RGBAImage {
   return p.toImage();
 }
 
+/**
+ * 刺海胆（16×16，脚底中心为原点）：紫色的圆身子，长着一圈冰蓝色的刺，生气的眼睛。
+ * phase 让刺一伸一缩；hang 是倒挂款（顶上有一截冰凌连着树枝）；freed 是打倒后的小海胆。
+ */
+function urchin(o: { phase?: number; hang?: boolean; freed?: boolean; roll?: number }): RGBAImage {
+  const p = new Paint(16, 16);
+  const cx = 7.5;
+  const cy = o.hang ? 7 : 9;
+  const r = o.freed ? 3.6 : 4.2;
+  // 刺：8 个方向，冰蓝色、尖端发白；打倒后变成短短的粉色软刺
+  const spikes = 8;
+  const rot = ((o.roll ?? 0) / 4) * (Math.PI / 4) + (o.phase ?? 0) * 0.2;
+  for (let i = 0; i < spikes; i++) {
+    const a = rot + (i / spikes) * Math.PI * 2;
+    const len = o.freed ? 1.6 : 3 + ((i + (o.phase ?? 0)) % 2);
+    for (let k = 0; k <= len * 2; k++) {
+      const d = r + k / 2;
+      const x = cx + Math.cos(a) * d;
+      const y = cy + Math.sin(a) * d;
+      const tip = k / 2 > len - 1;
+      p.set(x, y, o.freed ? 'blush' : tip ? 'white' : 'frost');
+    }
+  }
+  p.disc(cx, cy, r, o.freed ? 'blush' : 'violet');
+  p.recolorWhere(
+    (x, y, c) => (c === 'violet' || c === 'blush') && x >= cx + 1 && y >= cy,
+    o.freed ? 'red2' : 'deep',
+  );
+  p.set(cx - 1.5, cy - 2.5, o.freed ? 'cream' : 'mist');
+  // 眼睛
+  const ey = Math.round(cy);
+  if (o.freed) {
+    p.set(cx - 1.5, ey, 'ink').set(cx + 1.5, ey, 'ink');
+    p.set(cx - 2.5, ey + 1, 'ink').set(cx + 2.5, ey + 1, 'ink');
+  } else {
+    p.set(cx - 1.5, ey, 'white').set(cx + 1.5, ey, 'white');
+    p.set(cx - 1.5, ey + 1, 'ink').set(cx + 1.5, ey + 1, 'ink');
+    // 生气的眉毛
+    p.set(cx - 2.5, ey - 1, 'ink').set(cx + 2.5, ey - 1, 'ink');
+  }
+  if (o.hang) {
+    // 顶上一截冰凌，连着上面的树枝
+    p.vline(7, 0, 2, 'cloud').vline(8, 0, 1, 'frost');
+  } else if (!o.freed) {
+    // 底下一排小管足
+    for (const x of [5, 7, 9, 11]) p.set(x + ((o.phase ?? 0) % 2), 15, 'deep');
+  }
+  p.outline('night');
+  return p.toImage();
+}
+
+/**
+ * 冰喙鸥（20×14，中心偏下为原点，默认朝右）：白身子、灰翅膀、背上一簇冰晶，喙是冰蓝色的。
+ * wing：0 上、1 平、2 下；alert 张开翅膀张嘴；dive 收翅俯冲；freed 是普通海鸥（黄喙、没有冰晶）。
+ */
+function gull(o: { wing?: number; alert?: boolean; dive?: boolean; freed?: boolean }): RGBAImage {
+  const p = new Paint(22, 16);
+  const beak: ColorName = o.freed ? 'gold' : 'sky';
+  if (o.dive) {
+    // 收起翅膀、头朝前下方
+    p.ellipse(9, 7, 5.5, 3.2, 'white');
+    p.disc(14.5, 10, 2.6, 'white');
+    p.line(4, 5, 12, 8, 'mist').line(5, 4, 11, 6, 'cloud');
+    p.set(3, 4, 'stone').set(2, 4, 'stone');
+    p.set(17, 11, beak).set(18, 12, beak).set(19, 13, beak);
+    p.set(15, 9, 'ink');
+    if (!o.freed) p.set(8, 3, 'frost').set(9, 2, 'white').set(10, 3, 'frost');
+    p.outline('night');
+    return p.toImage();
+  }
+  // 身子
+  p.ellipse(10, 9, 5.5, 3.2, 'white');
+  p.recolorWhere((x, y, c) => c === 'white' && y >= 11, 'cloud');
+  // 尾巴
+  p.rect(3, 8, 2, 2, 'cloud').set(2, 8, 'mist');
+  // 头和喙
+  p.disc(15, 7.5, 2.6, 'white');
+  p.set(16, 7, 'ink');
+  if (o.alert) {
+    p.set(18, 7, beak).set(19, 6, beak).set(18, 9, beak).set(19, 10, beak);
+    p.set(15, 6, 'ink');
+  } else {
+    p.hline(18, 20, 8, beak);
+    p.set(18, 9, o.freed ? 'straw' : 'frost');
+  }
+  // 翅膀：实心的一片，前缘浅、后缘深
+  const wing = o.alert ? 0 : (o.wing ?? 1);
+  const span = (y: number, x0: number, x1: number) => {
+    p.hline(x0, x1, y, 'cloud');
+    p.set(x1, y, 'mist');
+  };
+  if (wing === 0) {
+    span(6, 7, 12);
+    span(5, 6, 11);
+    span(4, 6, 10);
+    span(3, 5, 9);
+    span(2, 5, 7);
+    p.set(4, 1, 'stone').set(5, 1, 'stone');
+  } else if (wing === 1) {
+    p.hline(3, 14, 7, 'cloud').hline(4, 13, 6, 'cloud');
+    p.hline(5, 12, 8, 'mist');
+    p.set(2, 7, 'stone').set(15, 7, 'stone');
+  } else {
+    span(10, 7, 12);
+    span(11, 7, 11);
+    span(12, 7, 10);
+    span(13, 8, 9);
+    p.set(8, 14, 'stone');
+  }
+  // 背上的冰晶
+  if (!o.freed) p.set(9, 5, 'frost').set(10, 4, 'white').set(11, 5, 'frost').set(10, 5, 'sky');
+  // 爪子
+  p.set(9, 12, 'straw').set(11, 12, 'straw');
+  p.outline('night');
+  return p.toImage();
+}
+
 const frames: Record<string, RGBAImage> = {};
 for (const blue of [false, true]) {
   const pre = blue ? 'blue' : 'crab';
@@ -120,5 +237,19 @@ for (const blue of [false, true]) {
 frames.free_0 = crab({ crystal: false, freed: true, legs: 0, claws: 1 });
 frames.free_1 = crab({ crystal: false, freed: true, legs: 1, claws: 0 });
 frames.free_blink = crab({ crystal: false, freed: true, blink: true });
+
+// 第 2 关：刺海胆、冰喙鸥
+frames.urchin_0 = urchin({ phase: 0 });
+frames.urchin_1 = urchin({ phase: 1 });
+frames.urchin_hang = urchin({ hang: true });
+frames.urchin_hang_1 = urchin({ hang: true, phase: 1 });
+for (let i = 0; i < 4; i++) frames[`urchin_free_${i}`] = urchin({ freed: true, roll: i });
+frames.gull_0 = gull({ wing: 0 });
+frames.gull_1 = gull({ wing: 1 });
+frames.gull_2 = gull({ wing: 2 });
+frames.gull_alert = gull({ alert: true });
+frames.gull_dive = gull({ dive: true });
+frames.gull_free_0 = gull({ wing: 0, freed: true });
+frames.gull_free_1 = gull({ wing: 2, freed: true });
 
 export const enemySheet: ImageSheet = { key: 'enemy', frames };

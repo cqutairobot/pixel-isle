@@ -36,6 +36,8 @@ export class HeroView {
   private flashTime = 0;
   /** 关卡场景指定的帧（受击、倒地、胜利、过场姿势）；null 按状态自动选 */
   override: string | null = null;
+  /** 短暂的动作姿势（扔海星、接住），优先级低于 override */
+  private act: { kind: 'throw' | 'catch'; up: boolean; t: number } | null = null;
   /** 减少闪烁：受击时不白闪 */
   reduceFlash = false;
   /** 跑步动画里脚着地的那一帧回调（播放脚步声、扬尘） */
@@ -81,7 +83,19 @@ export class HeroView {
         this.sx.set(1.25);
         this.sy.set(0.78);
         break;
+      case 'throw':
+        this.act = { kind: 'throw', up: e.dirY < 0, t: 0.18 };
+        this.sx.set(1.1);
+        this.sy.set(0.92);
+        break;
+      case 'starfishCatch':
+        // 跑着、跳着接住时不打断动作，只有站着时摆个接住的姿势
+        this.act = { kind: 'catch', up: false, t: 0.12 };
+        this.sx.set(0.92);
+        this.sy.set(1.08);
+        break;
       case 'hurt':
+        this.act = null;
         if (e.dir !== 0) {
           this.flashTime = 0.1;
           this.sx.set(0.8);
@@ -97,7 +111,11 @@ export class HeroView {
       if (p.onGround) this.sx.set(0.72);
       this.lastFacing = p.facing;
     }
-    this.frame = this.override ?? this.pickFrame(dt, p, t, x, y);
+    if (this.act) {
+      this.act.t -= dt;
+      if (this.act.t <= 0) this.act = null;
+    }
+    this.frame = this.override ?? this.actFrame(p) ?? this.pickFrame(dt, p, t, x, y);
     const s = this.sprite;
     s.setFrame(`hero/${this.frame}`);
     if (this.flashTime > 0 && !this.reduceFlash) {
@@ -128,6 +146,14 @@ export class HeroView {
 
   resetRibbon(x: number, y: number): void {
     this.ribbon.reset(x, y - HERO_H + RIBBON_ANCHOR.y);
+  }
+
+  private actFrame(p: Player): string | null {
+    const a = this.act;
+    if (!a) return null;
+    if (a.kind === 'catch') return p.onGround && Math.abs(p.vx) < 8 ? 'catch' : null;
+    if (!p.onGround) return a.up ? 'throw_air_up' : 'throw_air';
+    return a.up ? 'throw_up' : 'throw_1';
   }
 
   private pickFrame(dt: number, p: Player, t: Tuning, x: number, y: number): string {

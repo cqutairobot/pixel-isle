@@ -6,6 +6,8 @@ import { TILE } from '../sim/constants';
 import type { Enemy } from '../sim/enemies';
 import type { SimEvent } from '../sim/events';
 import type { Item } from '../sim/items';
+import type { CoconutTree } from '../sim/props';
+import { RULES } from '../sim/tuning';
 import type { Npc, World } from '../sim/world';
 import type { Particles } from './particles';
 import { Spring } from './spring';
@@ -19,9 +21,11 @@ const NPC_FRAMES: Record<string, { idle: string[]; h: number }> = {
   haishen: { idle: ['npc/haishen_idle_0', 'npc/haishen_idle_1'], h: 22 },
   adou: { idle: ['npc/adou_idle_0', 'npc/adou_idle_1'], h: 17 },
   bailu: { idle: ['npc/bailu_idle_0', 'npc/bailu_idle_1'], h: 22 },
+  daishu: { idle: ['npc/daishu_idle_0', 'npc/daishu_idle_1'], h: 25 },
 };
 
 interface Freed {
+  kind: 'crab' | 'urchin' | 'gull';
   img: Phaser.GameObjects.Image;
   x: number;
   y: number;
@@ -49,6 +53,9 @@ export class EntityViews {
   private chimeImgs: Phaser.GameObjects.Image[] = [];
   private chimeSprings: Spring[] = [];
   private freed: Freed[] = [];
+  /** 椰子树（树冠被打到时晃一下）和掉下来的椰子 */
+  private trees: Array<{ tree: CoconutTree; img: Phaser.GameObjects.Image; shake: number }> = [];
+  private nuts = new Map<number, Phaser.GameObjects.Image>();
   private huihui: Phaser.GameObjects.Image;
   private glow: Phaser.GameObjects.Image;
   private hx = 0;
@@ -91,6 +98,14 @@ export class EntityViews {
         e.id,
         scene.add.image(0, 0, ATLAS, this.enemyFrame(e, 0)).setOrigin(0.5, 1).setDepth(6),
       );
+    }
+    for (const tree of world.props.trees) {
+      // 树冠中心在图里第 33 列（见 src/art/grove.ts）
+      const img = scene.add
+        .image(tree.x, tree.y, ATLAS, 'grove/tree_2_0')
+        .setOrigin(33 / 64, 1)
+        .setDepth(-6);
+      this.trees.push({ tree, img, shake: 0 });
     }
     for (const n of world.npcs) {
       const f = NPC_FRAMES[n.id];
@@ -220,13 +235,29 @@ export class EntityViews {
         case 'enemyDefeat': {
           const img = this.enemies.get(e.id);
           img?.setVisible(false);
+          const en = this.world.enemies.find((q) => q.id === e.id);
+          const kind =
+            en?.kind === 'gull'
+              ? 'gull'
+              : en?.kind === 'urchin' || en?.kind === 'urchinHang'
+                ? 'urchin'
+                : 'crab';
           const dir = Math.sign(e.x - this.world.player.body.centerX) || 1;
+          const first =
+            kind === 'gull'
+              ? 'enemy/gull_free_0'
+              : kind === 'urchin'
+                ? 'enemy/urchin_free_0'
+                : e.cause === 'stomp'
+                  ? 'enemy/crab_squash'
+                  : 'enemy/free_blink';
           const f = this.scene.add
-            .image(e.x, e.y, ATLAS, e.cause === 'stomp' ? 'enemy/crab_squash' : 'enemy/free_blink')
+            .image(e.x, e.y, ATLAS, first)
             .setOrigin(0.5, 1)
             .setDepth(6)
             .setFlipX(dir < 0);
           this.freed.push({
+            kind,
             img: f,
             x: e.x,
             y: e.y,
@@ -234,7 +265,7 @@ export class EntityViews {
             vy: e.cause === 'bump' ? -200 : 0,
             t: e.cause === 'stomp' ? 0 : 0.1,
             dir,
-            ground: e.y,
+            ground: kind === 'crab' ? e.y : this.groundBelow(e.x, e.y),
             flipped: e.cause === 'bump',
           });
           if (this.huiShown) this.mood('happy', 0.6);
@@ -243,6 +274,21 @@ export class EntityViews {
         case 'enemyLost':
           this.enemies.get(e.id)?.setVisible(false);
           break;
+        case 'gullAlert': {
+          const g = this.world.enemies.find((q) => q.id === e.id);
+          if (g)
+            this.emote(
+              () => (g.alive ? { x: g.body.centerX, y: g.body.y - 2 } : null),
+              'bang',
+              RULES.gullTelegraphFrames / 60 + 0.1,
+            );
+          break;
+        }
+        case 'treeHit': {
+          const t = this.trees.find((q) => q.tree.id === e.id);
+          if (t) t.shake = 0.35;
+          break;
+        }
         case 'chime': {
           const s = this.chimeSprings[e.index];
           if (s) s.velocity += 2.6 * (Math.random() < 0.5 ? 1 : -1);
@@ -263,6 +309,20 @@ export class EntityViews {
   }
 
   private enemyFrame(e: Enemy, t: number): string {
+    if (e.kind === 'urchin' || e.kind === 'urchinHang') {
+      if (e.mode === 'hang') return 'enemy/urchin_hang';
+      if (e.mode === 'shake')
+        return Math.floor(t * 20) % 2 ? 'enemy/urchin_hang_1' : 'enemy/urchin_hang';
+      if (e.mode === 'fall') return 'enemy/urchin_hang_1';
+      // 刺一张一缩，慢慢地"呼吸"
+      return `enemy/urchin_${Math.floor(t * 2.5 + e.id * 0.37) % 2}`;
+    }
+    if (e.kind === 'gull') {
+      if (e.mode === 'alert') return Math.floor(t * 14) % 2 ? 'enemy/gull_alert' : 'enemy/gull_0';
+      if (e.mode === 'dive') return 'enemy/gull_dive';
+      const fps = e.mode === 'climb' ? 12 : 7;
+      return `enemy/gull_${[0, 1, 2, 1][Math.floor(t * fps + e.id) % 4]}`;
+    }
     const pre = e.kind === 'blueClaw' ? 'blue' : 'crab';
     if (!e.active)
       return Math.floor(t * 0.7 + e.id) % 7 === 0 ? `enemy/${pre}_blink` : `enemy/${pre}_walk_0`;
@@ -359,10 +419,46 @@ export class EntityViews {
       img.setVisible(e.alive);
       if (!e.alive) continue;
       const b = e.body;
-      img
-        .setFrame(this.enemyFrame(e, this.time))
-        .setFlipX(e.facing < 0)
-        .setPosition(lerp(b.px + b.w / 2, b.centerX, alpha), lerp(b.py + b.h, b.bottom, alpha));
+      const x = lerp(b.px + b.w / 2, b.centerX, alpha);
+      img.setFrame(this.enemyFrame(e, this.time)).setFlipX(e.facing < 0);
+      if (e.kind === 'gull') {
+        img.setOrigin(0.5, 0.5).setPosition(x, lerp(b.py + b.h / 2, b.centerY, alpha));
+      } else if (e.mode === 'hang' || e.mode === 'shake') {
+        // 倒挂：顶上的刺扎进上面那一格；晃的时候左右抖 1 px
+        const jitter = e.mode === 'shake' ? (Math.floor(this.time * 30) % 2 ? 1 : -1) : 0;
+        img.setOrigin(0.5, 0).setPosition(Math.round(x) + jitter, b.y - 2);
+      } else {
+        img.setOrigin(0.5, 1).setPosition(x, lerp(b.py + b.h, b.bottom, alpha));
+      }
+    }
+    // 椰子树：剩几个椰子画几个；树冠被打到时左右晃一下
+    for (const t of this.trees) {
+      const sway = Math.floor(this.time * 1.1 + t.tree.id * 0.37) % 2;
+      t.img.setFrame(`grove/tree_${Math.min(3, t.tree.coconuts)}_${sway}`);
+      if (t.shake > 0) {
+        t.shake -= dt;
+        t.img.x = t.tree.x + Math.round(Math.sin(t.shake * 60) * 2 * (t.shake / 0.35));
+      } else t.img.x = t.tree.x;
+    }
+    // 掉下来的椰子：跟着 sim 走，按滚过的距离转
+    const nutAlive = new Set<number>();
+    for (const c of w.props.coconuts) {
+      if (!c.alive) continue;
+      nutAlive.add(c.id);
+      let img = this.nuts.get(c.id);
+      if (!img) {
+        img = this.scene.add.image(0, 0, ATLAS, 'grove/coconut').setDepth(4);
+        this.nuts.set(c.id, img);
+      }
+      const b = c.body;
+      const x = lerp(b.px, b.x, alpha) + b.w / 2;
+      img.setPosition(x, lerp(b.py, b.y, alpha) + b.h / 2).setRotation(x / 5);
+    }
+    for (const [id, img] of this.nuts) {
+      if (!nutAlive.has(id)) {
+        img.destroy();
+        this.nuts.delete(id);
+      }
     }
     this.updateFreed(dt);
     this.updateNpcs(dt);
@@ -394,6 +490,8 @@ export class EntityViews {
   private updateFreed(dt: number): void {
     this.freed = this.freed.filter((f) => {
       f.t += dt;
+      if (f.kind === 'gull') return this.updateFreedGull(f, dt);
+      if (f.kind === 'urchin') return this.updateFreedUrchin(f, dt);
       if (f.t < 0.12) return true;
       if (f.t < 0.4) {
         // 恢复原色，眨眨眼
@@ -429,6 +527,69 @@ export class EntityViews {
       }
       return true;
     });
+  }
+
+  /** (x, y) 正下方最近的能站的地面（px）；下面是空的就返回很远的地方 */
+  private groundBelow(x: number, y: number): number {
+    const g = this.world.grid;
+    for (let yy = Math.floor(y); yy < g.heightPx; yy++) if (g.standableAt(x, yy)) return yy;
+    return g.heightPx + 64;
+  }
+
+  /** 冰喙鸥变回白色的海鸥，扑着翅膀往斜上方飞走 */
+  private updateFreedGull(f: Freed, dt: number): boolean {
+    if (f.vx === 0) {
+      f.vx = f.dir * 60;
+      f.vy = -20;
+    }
+    f.vy = Math.max(-90, f.vy - 160 * dt);
+    f.x += f.vx * dt;
+    f.y += f.vy * dt;
+    f.img
+      .setFrame(Math.floor(f.t * 12) % 2 ? 'enemy/gull_free_1' : 'enemy/gull_free_0')
+      .setOrigin(0.5, 0.5)
+      .setFlipX(f.dir < 0)
+      .setPosition(Math.round(f.x), Math.round(f.y - 6));
+    if (f.t > 0.9) f.img.setAlpha(Math.max(0, 1 - (f.t - 0.9) / 0.6));
+    if (f.t > 1.5) {
+      f.img.destroy();
+      return false;
+    }
+    return true;
+  }
+
+  /** 刺海胆的刺碎掉，变回紫红色的小海胆，开心地滚走（一蹦一蹦） */
+  private updateFreedUrchin(f: Freed, dt: number): boolean {
+    if (f.t < 0.25) {
+      if (f.flipped) {
+        f.vy += 900 * dt;
+        f.y = Math.min(f.ground, f.y + f.vy * dt);
+      }
+      f.img.setPosition(Math.round(f.x), Math.round(f.y)).setFrame('enemy/urchin_free_0');
+      return true;
+    }
+    if (f.vx === 0) {
+      f.vx = f.dir * 70;
+      f.vy = -80;
+    }
+    f.vy += 600 * dt;
+    f.x += f.vx * dt;
+    f.y += f.vy * dt;
+    if (f.y >= f.ground) {
+      f.y = f.ground;
+      f.vy = -60;
+    }
+    const roll = Math.floor(f.t * 14) % 4;
+    f.img
+      .setFrame(`enemy/urchin_free_${f.dir > 0 ? roll : 3 - roll}`)
+      .setFlipX(false)
+      .setPosition(Math.round(f.x), Math.round(f.y));
+    if (f.t > 0.9) f.img.setAlpha(Math.max(0, 1 - (f.t - 0.9) / 0.5));
+    if (f.t > 1.4) {
+      f.img.destroy();
+      return false;
+    }
+    return true;
   }
 
   private updateNpcs(dt: number): void {

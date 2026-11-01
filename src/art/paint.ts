@@ -95,6 +95,35 @@ export class Paint {
     return this.ellipse(cx, cy, r, r, c);
   }
 
+  /** 实心多边形（像素中心判定，射线法） */
+  poly(pts: Array<[number, number]>, c: ColorName | null): this {
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    for (const [x, y] of pts) {
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+    }
+    for (let y = Math.floor(y0); y <= Math.ceil(y1); y++) {
+      for (let x = Math.floor(x0); x <= Math.ceil(x1); x++) {
+        const px = x + 0.5;
+        const py = y + 0.5;
+        let inside = false;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const [xi, yi] = pts[i]!;
+          const [xj, yj] = pts[j]!;
+          if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi)
+            inside = !inside;
+        }
+        if (inside) this.set(x, y, c);
+      }
+    }
+    return this;
+  }
+
   /** 在区域内按比例抖动两色（t 可以是随位置变化的函数） */
   dither(
     x: number,

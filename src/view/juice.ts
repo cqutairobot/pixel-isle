@@ -183,6 +183,7 @@ export class Juice {
           break;
         case 'hurt':
           this.sound.play('hurt', { pan: this.pan(e.x) });
+          if (e.spike) this.sound.play('spike', { pan: this.pan(e.x) });
           this.shake.add(e.dir === 0 ? 0.15 : 0.3);
           for (let i = 0; i < 4; i++)
             this.particles.spawn({
@@ -392,6 +393,135 @@ export class Juice {
             });
           }
           break;
+        // —— 回旋海星 ——
+        case 'throw':
+          this.sound.play('throw', { rate: rnd(0.96, 1.05), pan: this.pan(e.x) });
+          this.particles.spawn({
+            x: e.x,
+            y: e.y,
+            vx: e.dirX * 30,
+            vy: e.dirY * 30,
+            drag: 6,
+            life: 0.18,
+            frames: ['fx/dust_s'],
+          });
+          break;
+        case 'starfishDud':
+          this.sound.play('dud', { pan: this.pan(e.x) });
+          break;
+        case 'starfishBounce':
+          this.sound.play('ding', { rate: rnd(0.97, 1.03), pan: this.pan(e.x) });
+          this.particles.spawn({ x: e.x, y: e.y, life: 0.12, frames: ['fx/spark'] });
+          for (let i = 0; i < 3; i++)
+            this.particles.spawn({
+              x: e.x,
+              y: e.y,
+              vx: rnd(-50, 50),
+              vy: rnd(-70, -20),
+              gravity: 400,
+              life: 0.3,
+              frames: ['fx/chip'],
+            });
+          break;
+        case 'starfishHit':
+          this.sound.play('starHit', { rate: rnd(0.96, 1.06), pan: this.pan(e.x) });
+          this.shake.add(0.05);
+          this.particles.spawn({
+            x: e.x,
+            y: e.y,
+            life: 0.16,
+            frames: ['fx2/ring_0', 'fx2/ring_1'],
+          });
+          this.ring(e.x, e.y, ['fx/spark', 'fx/dot'], 6, 110, 0.22);
+          break;
+        case 'starfishCatch':
+          this.sound.play('catch', { pan: this.pan(e.x) });
+          this.particles.spawn({
+            x: e.x,
+            y: e.y,
+            life: 0.2,
+            frames: ['fx2/sparkle_2', 'fx2/sparkle_1', 'fx2/sparkle_0'],
+            depth: 11,
+          });
+          if (e.carried > 0) this.ring(e.x, e.y, ['fx2/sparkle_1', 'fx2/sparkle_0'], 6, 60);
+          break;
+        case 'starfishGrab':
+          this.sound.play('grab', { rate: rnd(0.97, 1.05), pan: this.pan(e.x) });
+          this.particles.spawn({
+            x: e.x,
+            y: e.y,
+            life: 0.25,
+            frames: ['fx2/sparkle_2', 'fx2/sparkle_1', 'fx2/sparkle_0'],
+          });
+          break;
+        case 'equipSwitch':
+          this.sound.play('equip');
+          break;
+        // —— 刺海胆、冰喙鸥 ——
+        case 'urchinShake':
+          this.sound.play('urchinShake', { pan: this.pan(e.x) });
+          for (let i = 0; i < 3; i++)
+            this.particles.spawn({
+              x: e.x + rnd(-8, 8),
+              y: e.y - rnd(10, 14),
+              vx: rnd(-10, 10),
+              vy: rnd(10, 30),
+              gravity: 120,
+              life: 0.6,
+              frames: ['fx2/leafg_0', 'fx2/leafg_1', 'fx2/leafg_2'],
+              fps: 8,
+              fade: true,
+            });
+          break;
+        case 'urchinLand':
+          this.sound.play('urchinLand', { pan: this.pan(e.x) });
+          this.dust(e.x - 4, e.y - 1, -30, -6, 's');
+          this.dust(e.x + 4, e.y - 1, 30, -6, 's');
+          break;
+        case 'gullAlert':
+          this.sound.play('gullCry', { rate: rnd(0.95, 1.05), pan: this.pan(e.x) });
+          break;
+        case 'gullDive':
+          this.sound.play('gullDive', { pan: this.pan(e.x) });
+          break;
+        // —— 椰子 ——
+        case 'coconutDrop':
+          this.sound.play('coconut', { rate: 0.8, pan: this.pan(e.x) });
+          for (let i = 0; i < 4; i++)
+            this.particles.spawn({
+              x: e.x + rnd(-14, 14),
+              y: e.y - rnd(0, 8),
+              vx: rnd(-20, 20),
+              vy: rnd(-30, 10),
+              gravity: 90,
+              life: rnd(0.8, 1.2),
+              frames: ['fx2/leafg_0', 'fx2/leafg_1', 'fx2/leafg_2', 'fx2/leafg_1'],
+              fps: rnd(6, 9),
+              fade: true,
+            });
+          break;
+        case 'coconutBounce':
+          this.sound.play('coconut', { volume: 0.7, rate: rnd(1.05, 1.2), pan: this.pan(e.x) });
+          this.dust(e.x - 3, e.y - 1, -25, -6, 's');
+          this.dust(e.x + 3, e.y - 1, 25, -6, 's');
+          break;
+        case 'coconutBreak':
+          this.sound.play('coconutBreak', { pan: this.pan(e.x) });
+          this.shake.add(0.05);
+          for (let i = 0; i < 6; i++)
+            this.particles.spawn({
+              x: e.x + rnd(-3, 3),
+              y: e.y - 5,
+              vx: rnd(-80, 80),
+              vy: rnd(-160, -70),
+              gravity: 600,
+              life: rnd(0.5, 0.8),
+              frames: [`grove/shard_${i % 2}`],
+              flipX: i % 2 === 0,
+              fade: true,
+            });
+          this.dust(e.x, e.y - 2, 0, -10, 'm', 0.35);
+          break;
         case 'respawn':
           this.sound.play('respawn', { pan: this.pan(e.x) });
           for (let i = 0; i < 8; i++) {
@@ -436,8 +566,25 @@ export class Juice {
     this.timers.push({ t, fn });
   }
 
-  /** 每个渲染帧调用：持续性的效果（急停时连续扬尘、太阳果光环） */
+  /** 海星飞行时的破风声：每 6 个逻辑帧一下 */
+  private spinTick = -1;
+
+  /** 每个渲染帧调用：持续性的效果（急停时连续扬尘、太阳果光环、海星破风声） */
   tick(dt: number, world: World): void {
+    const sf = world.starfish;
+    if (sf.out) {
+      const k = Math.floor(sf.frames / 6);
+      if (k !== this.spinTick) {
+        this.spinTick = k;
+        const b = sf.body;
+        const v = Math.hypot(b.x - b.px, b.y - b.py) * 60;
+        this.sound.play('spin', {
+          volume: 0.5 + Math.min(1, v / 300) * 0.5,
+          rate: 0.8 + Math.min(1, v / 300) * 0.6,
+          pan: this.pan(b.centerX),
+        });
+      }
+    } else this.spinTick = -1;
     this.timers = this.timers.filter((tm) => {
       tm.t -= dt;
       if (tm.t > 0) return true;

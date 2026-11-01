@@ -31,11 +31,13 @@ import { SettingsPanel } from '../ui/settingsPanel';
 import { Tally, type TallySfx } from '../ui/tally';
 import { EntityViews } from '../view/entities';
 import { HeroView } from '../view/heroView';
+import { GroveBackground } from '../view/groveBackground';
 import { IslandBackground } from '../view/islandBackground';
 import { Juice } from '../view/juice';
 import { LevelView } from '../view/levelView';
 import { Particles } from '../view/particles';
 import { Shake } from '../view/shake';
+import { StarfishView } from '../view/starfishView';
 import { Director, type DirectorHost } from './cutscene/director';
 import { FixedStepLoop, fitCamera, lerp, SLOW_STEPS } from './play/loop';
 import type { UIScene } from './UIScene';
@@ -73,7 +75,8 @@ export class LevelScene extends Phaser.Scene {
   private particles!: Particles;
   private shake = new Shake();
   private juice!: Juice;
-  private bg!: IslandBackground;
+  private bg!: IslandBackground | GroveBackground;
+  private starfishView!: StarfishView;
   private view!: LevelView;
   private ents!: EntityViews;
   private overlay!: DebugOverlay;
@@ -152,10 +155,14 @@ export class LevelScene extends Phaser.Scene {
     }
     this.startX = this.world.player.body.x;
 
-    this.bg = new IslandBackground(this, this.level, this.mode === 'prologue');
+    this.bg =
+      this.level.themes[0]?.theme === 'grove'
+        ? new GroveBackground(this, this.level)
+        : new IslandBackground(this, this.level, this.mode === 'prologue');
     this.view = new LevelView(this, this.level);
     this.particles = new Particles(this);
     this.ents = new EntityViews(this, this.world, this.particles);
+    this.starfishView = new StarfishView(this, this.world);
     this.overlay = new DebugOverlay(this);
     this.hero = new HeroView(this);
     this.hero.sprite.setDepth(10);
@@ -180,6 +187,7 @@ export class LevelScene extends Phaser.Scene {
     this.ui.setLevelUI(this.mode === 'play');
     this.ui.hud.setMaxHearts(this.world.maxHearts, this.world.hearts);
     this.ui.hud.setShells(0, true);
+    this.ui.hud.setEquip(this.world.equipment.length > 0);
     this.syncGlass();
     this.ui.bubble.onType = () =>
       audio.play('ui', { volume: 0.25, rate: 1.6 + Math.random() * 0.2 });
@@ -389,7 +397,8 @@ export class LevelScene extends Phaser.Scene {
     if (w.waiting && !this.story) this.beginStory();
     // 对话、过场期间世界不前进（这些帧也不记进回放）
     if (this.story) return;
-    if (input.pressed & BTN.attack && w.state === 'play') this.hint('attack');
+    if (input.pressed & BTN.attack && w.state === 'play' && !w.equipment.length)
+      this.hint('attack');
     w.step(input);
     this.juice.handle(w.events, w);
     this.ents.onEvents(w.events);
@@ -632,7 +641,29 @@ export class LevelScene extends Phaser.Scene {
           else if (e.id.startsWith('hint:')) this.hint(e.id.slice(5));
           break;
         case 'enemyActivate':
-          if (w.flags.has('huihui')) this.hint('crab');
+          if (!w.flags.has('huihui')) break;
+          if (e.kind === 'urchin' || e.kind === 'urchinHang') this.hint('urchin');
+          else if (e.kind === 'gull') this.hint('gull');
+          else this.hint('crab');
+          break;
+        case 'urchinShake':
+          this.hint('hang');
+          break;
+        case 'coconutBreak':
+          this.time.delayedCall(300, () => this.hint('coconut'));
+          break;
+        case 'throw':
+          this.ui.hud.setEquipOut(true);
+          this.ui.keyHint.done('throw');
+          if (e.dirY < 0) this.ui.keyHint.done('throwUp');
+          break;
+        case 'starfishCatch':
+          this.ui.hud.setEquipOut(false);
+          this.ui.hud.equipCatch();
+          if (e.carried) hud.setShells(w.stats.shells);
+          break;
+        case 'equipSwitch':
+          this.ui.hud.equipWiggle();
           break;
         case 'enemyDefeat':
           hud.setShells(w.stats.shells);
@@ -658,6 +689,7 @@ export class LevelScene extends Phaser.Scene {
           break;
         case 'hurt':
           hud.setHearts(w.hearts);
+          if (e.spike) this.time.delayedCall(250, () => this.hint('spike'));
           break;
         case 'heal':
           hud.setHearts(e.hearts);
@@ -682,6 +714,7 @@ export class LevelScene extends Phaser.Scene {
           break;
         case 'respawn':
           this.snapPrev();
+          hud.setEquipOut(false);
           this.hero.resetRibbon(w.player.body.centerX, w.player.body.bottom);
           if (e.cause !== 'death') {
             this.cameras.main.fadeIn(220, ...FADE);
@@ -719,7 +752,7 @@ export class LevelScene extends Phaser.Scene {
           audio.music.jingle('clear', 'end');
           this.clearT = 0;
           this.ui.keyHint.done('move');
-          this.hint('gate');
+          this.hint(this.levelId === '1-1' ? 'gate' : 'gate2');
           break;
       }
     }
@@ -908,6 +941,11 @@ export class LevelScene extends Phaser.Scene {
       this.hero.update(dt, puppet, w.tuning, hx, hy, visible);
     } else this.hero.update(dt, p, w.tuning, hx, hy, visible);
     this.ents.update(dt, alpha, cx);
+    this.starfishView.update(dt, alpha);
+    // 前景叶子：小满或敌人走到后面时变透明
+    const fronts = [{ x: hx - b.w / 2, y: hy - b.h, w: b.w, h: b.h }];
+    for (const e of w.enemies) if (e.alive && e.active) fronts.push(e.body);
+    this.view.updateFronts(dt, fronts);
     this.particles.update(dt, false);
     this.juice.tick(dt, w);
     this.bg.update(dt, cx, cy);

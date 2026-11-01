@@ -85,26 +85,82 @@ function adou(frame: number, cheer: boolean): RGBAImage {
 }
 
 // —— 白露：利落的黑色短发、金色小鱼发夹，青色上衣，卷起裤脚 ——
-function bailu(frame: number): RGBAImage {
-  const p = new Paint(16, 22);
-  const bob = frame % 2;
-  p.rect(5, 19, 2, 3, 'skin1').rect(9, 19, 2, 3, 'skin1');
-  p.rect(4, 15, 8, 4, 'sand2');
-  p.hline(4, 11, 18, 'sand3');
-  p.rect(4, 10 + bob, 8, 5 - bob, 'teal');
-  p.hline(5, 10, 10 + bob, 'cloud');
-  p.set(7, 11 + bob, 'cloud').set(8, 11 + bob, 'cloud');
-  // 叉腰
-  p.line(3, 11 + bob, 2, 13, 'skin2').line(2, 13, 4, 14, 'skin2');
-  p.line(12, 11 + bob, 13, 13, 'skin2').line(13, 13, 11, 14, 'skin2');
-  face(p, 7, 3 + bob, 'skin2', { eyes: frame === 2 ? 'closed' : 'open' });
+type BailuPose = 'idle' | 'blink' | 'throw_0' | 'throw_1' | 'catch';
+function bailu(frame: number, pose: BailuPose = 'idle'): RGBAImage {
+  // 比身体宽 2 px，给伸出去的手臂留位置；身体仍然在正中间
+  const p = new Paint(18, 22);
+  const o = 1;
+  const bob = pose === 'idle' || pose === 'blink' ? frame % 2 : 0;
+  p.rect(o + 5, 19, 2, 3, 'skin1').rect(o + 9, 19, 2, 3, 'skin1');
+  p.rect(o + 4, 15, 8, 4, 'sand2');
+  p.hline(o + 4, o + 11, 18, 'sand3');
+  p.rect(o + 4, 10 + bob, 8, 5 - bob, 'teal');
+  p.hline(o + 5, o + 10, 10 + bob, 'cloud');
+  p.set(o + 7, 11 + bob, 'cloud').set(o + 8, 11 + bob, 'cloud');
+  // 左手叉腰
+  p.line(o + 3, 11 + bob, o + 2, 13, 'skin2').line(o + 2, 13, o + 4, 14, 'skin2');
+  // 右手：叉腰 / 举起来准备扔 / 往前甩出去 / 举高接住
+  if (pose === 'throw_0') {
+    // 反手蓄力：胳膊横过胸前收到另一边
+    p.line(o + 12, 11, o + 7, 12, 'skin2');
+    p.rect(o + 5, 11, 2, 2, 'skin2');
+  } else if (pose === 'throw_1') {
+    p.line(o + 12, 11, o + 16, 10, 'skin2');
+    p.set(o + 16, 9, 'skin2');
+  } else if (pose === 'catch') {
+    p.line(o + 12, 11, o + 14, 6, 'skin2');
+    p.rect(o + 13, 4, 2, 2, 'skin2');
+  } else {
+    p.line(o + 12, 11 + bob, o + 13, 13, 'skin2').line(o + 13, 13, o + 11, 14, 'skin2');
+  }
+  const eyes = pose === 'blink' ? 'closed' : pose === 'catch' ? 'happy' : 'open';
+  face(p, o + 7, 3 + bob, 'skin2', { eyes });
   // 头发：齐耳短发，刘海斜向一边
-  p.ellipse(7.5, 3.5 + bob, 5.2, 3.2, 'night');
-  p.rect(2, 4 + bob, 2, 4, 'night');
-  p.set(11, 5 + bob, 'night');
-  p.set(4, 2 + bob, 'gold')
-    .set(5, 2 + bob, 'gold')
-    .set(3, 3 + bob, 'orange');
+  p.ellipse(o + 7.5, 3.5 + bob, 5.2, 3.2, 'night');
+  p.rect(o + 2, 4 + bob, 2, 4, 'night');
+  p.set(o + 11, 5 + bob, 'night');
+  p.set(o + 4, 2 + bob, 'gold')
+    .set(o + 5, 2 + bob, 'gold')
+    .set(o + 3, 3 + bob, 'orange');
+  p.outline('night');
+  return p.toImage();
+}
+
+// —— 大暑：圆滚滚的冰沙小贩，晒得黝黑，额头绑着白毛巾，橙色背心、蓝短裤 ——
+function daishu(frame: number, wipe: boolean): RGBAImage {
+  const p = new Paint(22, 25);
+  const bob = wipe ? 0 : frame % 2;
+  // 腿与凉鞋
+  p.rect(7, 21, 3, 3, 'skin1').rect(12, 21, 3, 3, 'skin1');
+  p.rect(6, 24, 4, 1, 'bark').rect(12, 24, 4, 1, 'bark');
+  // 短裤
+  p.rect(5, 18, 12, 4, 'sea');
+  p.hline(5, 16, 21, 'deep');
+  // 圆肚子 + 背心
+  p.ellipse(11, 14 + bob, 6.6, 5.4 - bob, 'orange');
+  p.ellipse(9.5, 12.5 + bob, 3, 2, 'gold');
+  p.hline(7, 15, 9 + bob, 'orange');
+  p.set(8, 8 + bob, 'orange').set(14, 8 + bob, 'orange');
+  // 手臂
+  p.rect(3, 11 + bob, 2, 6, 'skin1');
+  p.set(3, 17 + bob, 'skin2');
+  if (wipe) {
+    // 举起胳膊用毛巾擦汗
+    p.line(17, 11, 18, 7, 'skin1').line(18, 7, 15, 4, 'skin1');
+    p.rect(14, 3, 3, 2, 'cloud');
+  } else {
+    p.rect(17, 11 + bob, 2, 6, 'skin1');
+    p.set(18, 17 + bob, 'skin2');
+  }
+  // 头：晒黑的脸，额头的白毛巾在脑后打个结
+  face(p, 10, 1 + bob, 'skin1', { eyes: wipe ? 'closed' : 'open' });
+  p.hline(6, 14, 2 + bob, 'cloud');
+  p.hline(6, 14, 1 + bob, 'white');
+  p.set(5, 2 + bob, 'cloud')
+    .set(4, 3 + bob, 'cloud')
+    .set(4, 4 + bob, 'mist');
+  // 汗珠
+  if (frame % 2 === 0 || wipe) p.set(16, 4 + bob, 'sky').set(16, 5 + bob, 'white');
   p.outline('night');
   return p.toImage();
 }
@@ -312,7 +368,13 @@ const frames: Record<string, RGBAImage> = {
   adou_cheer_1: adou(1, true),
   bailu_idle_0: bailu(0),
   bailu_idle_1: bailu(1),
-  bailu_blink: bailu(2),
+  bailu_blink: bailu(0, 'blink'),
+  bailu_throw_0: bailu(0, 'throw_0'),
+  bailu_throw_1: bailu(0, 'throw_1'),
+  bailu_catch: bailu(0, 'catch'),
+  daishu_idle_0: daishu(0, false),
+  daishu_idle_1: daishu(1, false),
+  daishu_wipe: daishu(0, true),
   grandpa: grandpa(false),
   grandpa_frozen: grandpa(true),
   huihui_idle_0: huihui('idle_0'),

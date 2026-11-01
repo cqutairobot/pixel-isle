@@ -87,7 +87,12 @@ export function mountSoundboard(): void {
     });
   };
   let group = '';
-  for (const id of SFX_IDS) {
+  // 按类别分组显示（同一类的槽位排在一起，新加的槽位也归到原来的类别下）
+  const order = [...new Set(SFX_IDS.map((id) => SFX[id].group))];
+  const ids = [...SFX_IDS].sort(
+    (a, b) => order.indexOf(SFX[a].group) - order.indexOf(SFX[b].group),
+  );
+  for (const id of ids) {
     if (SFX[id].group !== group) {
       group = SFX[id].group;
       const h = document.createElement('div');

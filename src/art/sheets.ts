@@ -1,8 +1,10 @@
 import { blockSheet } from './blocks';
 import { decoSheet } from './deco';
 import { enemySheet } from './enemies';
+import { equipSheet } from './equipment';
 import { fxSheet } from './fx';
 import { fx2Sheet } from './fx2';
+import { groveSheet } from './grove';
 import { heroSheet } from './hero';
 import { itemSheet } from './items';
 import { npcSheet } from './npcs';
@@ -25,6 +27,8 @@ export const allImageSheets: ImageSheet[] = [
   decoSheet,
   uiSheet,
   portraitSheet,
+  equipSheet,
+  groveSheet,
 ];
 
 /** 全部帧：名字形如 hero/run_3 */

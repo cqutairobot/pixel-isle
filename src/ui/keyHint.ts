@@ -16,6 +16,8 @@ const KEYS: Record<KeyHintId, Record<Scheme, string[]>> = {
   run: { wasd: ['D'], arrows: ['→'], pad: ['→'] },
   talk: { wasd: ['W'], arrows: ['↑'], pad: ['↑'] },
   drop: { wasd: ['S', '+', 'K'], arrows: ['↓', '+', 'Z'], pad: ['↓', '+', 'A'] },
+  throw: { wasd: ['J'], arrows: ['X'], pad: ['X'] },
+  throwUp: { wasd: ['W', '+', 'J'], arrows: ['↑', '+', 'X'], pad: ['↑', '+', 'X'] },
 };
 
 /**

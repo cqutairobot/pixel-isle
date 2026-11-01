@@ -604,6 +604,13 @@ export class World implements PlayerEnv {
       if (s.treeIds.has(t.id) || !rectsOverlap(r.x, r.y, r.w, r.h, t.crown)) continue;
       s.treeIds.add(t.id);
       const c = this.props.hitTree(t, Math.sign(s.dirX) || 1);
+      this.emit({
+        type: 'treeHit',
+        id: t.id,
+        x: t.crown.x + t.crown.w / 2,
+        y: t.crown.y + t.crown.h / 2,
+        empty: !c,
+      });
       if (c) this.emit({ type: 'coconutDrop', id: c.id, x: c.body.centerX, y: c.body.centerY });
     }
     this.moveCarried();

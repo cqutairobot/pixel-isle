@@ -102,6 +102,17 @@ const TORSO_OUT = grid(`
   ..ossowwwwWosso.
   .....owwwWWo....
 `);
+// 扔海星（第 2 关）：前手往前平伸、往斜上方伸
+const TORSO_THROW = grid(`
+  .....owwwwwo....
+  ....owwwwwWWosso
+  ....oswwwwWo....
+`);
+const TORSO_THROW_UP = grid(`
+  .....owwwwwooso.
+  ....owwwwwWWo...
+  ....oswwwwWo....
+`);
 
 // 裙子：第 14–15 行
 const SKIRT = grid(`
@@ -223,6 +234,14 @@ export const heroSheet: Sheet = {
     victory_1: () => frame({ head: HEAD_HAPPY, torso: TORSO_UP, legs: LEGS_TUCK, hatDy: -1 }),
     stretch_0: () => frame({ head: HEAD_OUCH, torso: TORSO_UP, dy: 0, hatDy: -1 }),
     stretch_1: () => frame({ head: HEAD_BLINK, torso: TORSO_UP, dy: 1 }),
+    // 第 2 关新增：扔海星（蓄力、出手、斜上出手、空中出手）、接住
+    throw_0: () => frame({ torso: TORSO_SWING_B, dy: 1 }),
+    throw_1: () => frame({ torso: TORSO_THROW }),
+    throw_up: () => frame({ head: HEAD_UP, torso: TORSO_THROW_UP }),
+    throw_air: () => frame({ torso: TORSO_THROW, legs: LEGS_TUCK, skirt: SKIRT_FLARE }),
+    throw_air_up: () =>
+      frame({ head: HEAD_UP, torso: TORSO_THROW_UP, legs: LEGS_TUCK, skirt: SKIRT_FLARE }),
+    catch: () => frame({ head: HEAD_HAPPY, torso: TORSO_OUT }),
   }),
 };
 
