@@ -69,6 +69,10 @@ function host(autoDialog: boolean): DirectorHost {
     signal: () => {},
     toast: () => {},
     dialog: {},
+    itemGet: (_id: string, _at: unknown, done: () => void) => {
+      if (autoDialog) queueMicrotask(done);
+      return fake;
+    },
   } as unknown as DirectorHost;
 }
 

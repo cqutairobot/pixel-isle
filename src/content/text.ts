@@ -21,6 +21,7 @@ export const UI_TEXT = {
   next: '继续',
   comingSoon: '第 2 关「椰影小径」正在制作中，敬请期待！',
   levelTitle12: '1-2 椰影小径',
+  itemGet: '得到了新装备！',
   tallyTitle12: '椰影小径 · 通关！',
   comingSoon3: '第 3 关「回声崖」正在制作中，敬请期待！',
   confirmHint: 'K / 空格 确认',
@@ -61,6 +62,21 @@ export const HINTS: Record<string, string> = {
   climb: '往上爬！铃门在树冠顶上！',
   gate2: '冰霜脚印往海崖那边去了！',
 };
+
+/** 章节地图（docs/levels/1-2.md §5） */
+export const MAP_TEXT = {
+  title: '时令岛 · 南岸',
+  best: '最佳用时',
+  notCleared: '还没通关',
+  enter: 'K 进入 · J 返回',
+  back: 'J 返回',
+  soon: '正在制作中，敬请期待！',
+  shop: '大暑的冰沙摊',
+  shopSoon: '即将开张',
+  hint: '←→ 移动 · K 选择 · Esc 菜单',
+  toMap: '回到地图',
+  menuTitle: '地图',
+} as const;
 
 /** 标题画面、菜单、设置、暂停 */
 export const MENU_TEXT = {

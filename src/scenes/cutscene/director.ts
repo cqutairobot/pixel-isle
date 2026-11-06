@@ -5,7 +5,7 @@ import { VIEW_H, VIEW_W } from '../../platform/display';
 import type { DialogBox, DialogHooks } from '../../ui/dialogBox';
 import type { Particles, ParticleSpec } from '../../view/particles';
 import { ATLAS } from '../../view/textures';
-import type { UIScene } from '../UIScene';
+import type { Modal, UIScene } from '../UIScene';
 
 export type Ease = (t: number) => number;
 
@@ -56,6 +56,11 @@ export interface DirectorHost {
   signal(name: string): void;
   toast(text: string): void;
   dialog: Pick<DialogHooks, 'voice' | 'sfx'>;
+  /**
+   * 打开获得道具演出（at 是小满脚底的世界坐标）；演出被玩家关掉时调用 done。
+   * 返回打开的界面（跳过过场时由导演直接关掉）。
+   */
+  itemGet(id: string, at: Point, done: () => void): Modal;
 }
 
 export interface SpawnOptions {
@@ -117,6 +122,8 @@ export class Director {
   private tweens: Tween[] = [];
   private pending = new Set<() => void>();
   private box: DialogBox | null = null;
+  /** 正在显示的获得道具演出 */
+  private modal: Modal | null = null;
   private cover = 0;
   private time = 0;
 
@@ -214,6 +221,16 @@ export class Director {
           this.box = null;
           done();
         },
+      });
+    });
+  }
+
+  /** 获得道具演出：等玩家按确认关掉再往下演 */
+  itemGet(id: string): Promise<void> {
+    return this.wait4((done) => {
+      this.modal = this.host.itemGet(id, { x: this.hero.x, y: this.hero.y }, () => {
+        this.modal = null;
+        done();
       });
     });
   }
@@ -493,20 +510,26 @@ export class Director {
   skip(): void {
     if (this.skipped) return;
     this.skipped = true;
-    if (this.box) {
-      this.host.ui.closeModal(this.box);
-      this.box = null;
-    }
+    this.closeOverlays();
     for (const done of [...this.pending]) done();
     this.tweens = [];
   }
 
-  /** 过场结束（看完或跳过）：收拾演出用的东西 */
-  finish(): void {
+  /** 关掉对话框和获得道具演出 */
+  private closeOverlays(): void {
     if (this.box) {
       this.host.ui.closeModal(this.box);
       this.box = null;
     }
+    if (this.modal) {
+      this.host.ui.closeModal(this.modal);
+      this.modal = null;
+    }
+  }
+
+  /** 过场结束（看完或跳过）：收拾演出用的东西 */
+  finish(): void {
+    this.closeOverlays();
     for (const id of [...this.props.keys()]) this.remove(id);
     this.tweens = [];
     this.pending.clear();

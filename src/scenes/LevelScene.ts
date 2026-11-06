@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { audio } from '../audio/engine';
 import { END_STATES } from '../content/cutscenes/endStates';
 import { ADOU_SOLVED } from '../content/dialog/1-1';
-import { EQUIPMENT_IDS } from '../content/equipment';
+import { EQUIPMENT, EQUIPMENT_IDS } from '../content/equipment';
 import { LEVEL_CONTENT, type LevelContent } from '../content/levelContent';
 import type { Line } from '../content/dialog/line';
 import { LEVELS } from '../content/levels';
@@ -28,6 +28,7 @@ import { cloneTuning, PRESETS } from '../sim/tuning';
 import { World } from '../sim/world';
 import { settings, SHAKE_INTENSITY } from '../platform/settings';
 import { ConfirmBox, InfoCard } from '../ui/panelModal';
+import { ItemGet } from '../ui/itemGet';
 import { PauseMenu } from '../ui/pauseMenu';
 import { SettingsPanel } from '../ui/settingsPanel';
 import { Tally, type TallySfx } from '../ui/tally';
@@ -239,14 +240,19 @@ export class LevelScene extends Phaser.Scene {
       this.playCutscene(c.intro, () => {
         setFlag(this.save, 'introSeen');
         writeSave(this.save);
-        this.ui.cinema.banner(UI_TEXT.chapter, c.banner);
+        this.showTitleCard();
         if (startKey)
           this.time.delayedCall(2600, () => this.ui.keyHint.show(startKey, this.scheme()));
       });
     } else if (startKey)
       this.time.delayedCall(700, () => this.ui.keyHint.show(startKey, this.scheme()));
-    else if (!cp)
-      this.time.delayedCall(600, () => this.ui.cinema.banner(UI_TEXT.chapter, c.banner));
+    else if (!cp) this.time.delayedCall(600, () => this.showTitleCard());
+  }
+
+  /** 关卡开场标题卡：章节名、关卡名、本关找到过的海玻璃 */
+  private showTitleCard(): void {
+    const glass = this.save.levels[this.levelId]?.glass ?? [];
+    this.ui.titleCard.show(UI_TEXT.chapter, this.content.banner, glass);
   }
 
   /** 序章：夜色滤镜、点亮的灯笼、藏起白天才有的人和东西 */
@@ -491,6 +497,20 @@ export class LevelScene extends Phaser.Scene {
       signal: (name) => this.onSignal(name),
       toast: (text) => this.ui.toast.show(text, 2.4),
       dialog: this.dialogSounds(),
+      itemGet: (eid, at, done) => {
+        const info = EQUIPMENT[eid]!;
+        const cam = this.cameras.main;
+        audio.music.jingle('itemGet', 'duck');
+        const m = new ItemGet(this.ui.host, {
+          name: info.name,
+          usage: info.usage[this.scheme()],
+          frame: info.bigFrame,
+          at: { x: at.x - cam.scrollX, y: at.y - cam.scrollY },
+          onClose: done,
+        });
+        this.ui.openModal(m);
+        return m;
+      },
     };
     const d = new Director(host);
     this.director = d;

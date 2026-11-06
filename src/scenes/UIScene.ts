@@ -4,6 +4,7 @@ import type { Line } from '../content/dialog/line';
 import { currentLayout, type Layout } from '../platform/display';
 import { Bubble } from '../ui/bubble';
 import { Cinema } from '../ui/cinema';
+import { TitleCard } from '../ui/titleCard';
 import { DialogBox, type DialogHooks } from '../ui/dialogBox';
 import { Hud } from '../ui/hud';
 import { KeyHint } from '../ui/keyHint';
@@ -34,6 +35,7 @@ export class UIScene extends Phaser.Scene {
   keyHint!: KeyHint;
   bubble!: Bubble;
   cinema!: Cinema;
+  titleCard!: TitleCard;
   skip!: SkipHint;
   transition!: Transition;
   /** 给模态面板用的：在这里打开、关掉、播放菜单音效 */
@@ -58,6 +60,7 @@ export class UIScene extends Phaser.Scene {
     this.keyHint = new KeyHint(this);
     this.bubble = new Bubble(this);
     this.cinema = new Cinema(this);
+    this.titleCard = new TitleCard(this);
     this.skip = new SkipHint(this);
     this.transition = new Transition(this);
     this.setLevelUI(false);

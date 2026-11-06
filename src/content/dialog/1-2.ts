@@ -56,13 +56,24 @@ export const STARFISH_OPENING: Line[][] = [
   ],
 ];
 
-/** 拿到海星时的屏幕提示（完整的获得道具演出在 M2-b） */
-export const STARFISH_GET = '得到了「回旋海星」！';
+/**
+ * 章节地图上的闲聊（每段只出现一次）：
+ * - to12：第一次从 1-1 走向 1-2；
+ * - after12：1-2 通关后第一次回到地图。
+ */
+export const MAP_CHATTER: Record<string, Line[]> = {
+  to12: [
+    { who: 'xiaoman', text: '冰霜脚印往椰林里去了。' },
+    { who: 'huihui', text: '凉飕飕的……凉飕飕的。' },
+  ],
+  after12: [{ who: 'huihui', text: '下一站是海崖！……路还没修好？' }],
+};
 
 export function allDialogText12(): string[] {
   const lines: Line[] = [
     ...Object.values(NPC_TALK_12).flatMap((n) => [...n.first, ...n.again, ...(n.after ?? [])]),
     ...STARFISH_OPENING.flat(),
+    ...Object.values(MAP_CHATTER).flat(),
   ];
-  return [...lines.map((l) => l.text), STARFISH_GET];
+  return lines.map((l) => l.text);
 }

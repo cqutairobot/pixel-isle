@@ -1,6 +1,6 @@
 import { EASE, type Director } from '../../scenes/cutscene/director';
 import { TILE } from '../../sim/constants';
-import { STARFISH_GET, STARFISH_OPENING } from '../dialog/1-2';
+import { STARFISH_OPENING } from '../dialog/1-2';
 
 /**
  * 第 2 关的过场分镜（docs/levels/1-2.md §4）。只管"演"：世界在过场期间不动，
@@ -117,25 +117,11 @@ export async function starfish(d: Director): Promise<void> {
   d.sfx('catch');
   d.pose('catch');
   await d.wait(0.2);
-  // 拿到道具（完整的演出在 M2-b）：海星一边转一边升起来，闪闪发光
-  d.pose('victory_0');
-  d.spawn('glow', 'npc/glow', d.hero.x, d.hero.y - 36, {
-    origin: [0.5, 0.5],
-    add: true,
-    alpha: 0,
-    scale: 0.6,
-    depth: 6.5,
-  });
-  void d.tweenProp('glow', { alpha: 0.8, scale: 1.6 }, 0.5, EASE.out);
-  d.cycle('star', STAR, 10);
-  d.sfx('glass');
-  await d.move('star', d.hero.x, d.hero.y - 36, 0.5, EASE.out);
-  sparkles(d, d.hero.x, d.hero.y - 36, 10, 60);
-  d.toast(STARFISH_GET);
-  await d.wait(1.1);
-  void d.tweenProp('glow', { alpha: 0 }, 0.3);
-  await d.move('star', d.hero.x, d.hero.y - 10, 0.25, EASE.in);
+  // 获得道具演出：画面压暗、聚光，海星一边转一边升起来，横幅写名字和用法；按确认结束
   d.remove('star');
+  d.pose('victory_0');
+  sparkles(d, d.hero.x, d.hero.y - 18, 8, 50);
+  await d.itemGet('starfish');
   d.pose(null);
   await d.say(STARFISH_OPENING[2]!, {
     onLine: (i) => {
@@ -144,7 +130,6 @@ export async function starfish(d: Director): Promise<void> {
     },
   });
   d.pose(null);
-  d.remove('glow');
   d.letterbox(false);
   await d.release(0.6);
 }

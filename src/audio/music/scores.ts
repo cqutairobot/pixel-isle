@@ -305,6 +305,41 @@ export const JINGLES: Record<string, Score> = {
   },
 };
 
+// 第 2 关加的乐句（docs/levels/1-2.md §8）
+JINGLES.itemGet = {
+  id: 'itemGet',
+  title: '乐句：获得道具',
+  bpm: 120,
+  bars: 20 / 16,
+  loop: false,
+  gain: 0.95,
+  tracks: [
+    { inst: 'steel', vol: 0.55, echo: 0.22, notes: 'G5:2 C6:2 E6:2 G6:4 E6:2 G6:8' },
+    {
+      inst: 'marimba',
+      vol: 0.32,
+      pan: -0.25,
+      notes: 'C5:1 E5:1 G5:1 C6:1 E5:1 G5:1 C6:1 E6:1 r:12',
+    },
+    { inst: 'pulse25', vol: 0.13, pan: 0.3, notes: 'r:6 C6:2 E6:4 D6:2 E6:6' },
+    { inst: 'bell', vol: 0.4, pan: 0.2, echo: 0.3, notes: 'r:8 C7+E7:12' },
+    { inst: 'tri', vol: 0.45, notes: 'C3:4 G2:4 C3:12' },
+    { inst: 'pad', vol: 0.18, notes: 'C4+E4+G4:20' },
+  ],
+};
+JINGLES.unlock = {
+  id: 'unlock',
+  title: '乐句：路径解锁',
+  bpm: 120,
+  bars: 0.5,
+  loop: false,
+  gain: 0.8,
+  tracks: [
+    { inst: 'bell', vol: 0.4, echo: 0.3, notes: 'C6:1 D6:1 E6:1 G6:1 A6:1 C7:3' },
+    { inst: 'marimba', vol: 0.25, pan: -0.2, notes: 'r:4 C5+E5+G5:4' },
+  ],
+};
+
 export const SONGS: Record<string, Score> = {
   title: TITLE,
   beach: BEACH,
