@@ -1,10 +1,11 @@
 import { SAMPLE_RATE, type Rendered } from './sequencer';
 import { Noise } from './synth';
 
-export type AmbienceId = 'sea' | 'wind';
+export type AmbienceId = 'sea' | 'wind' | 'grove';
 
 /**
- * 环境声循环：海浪（低沉的噪声随浪涌起伏，浪头上带一点沙沙声）、风（带通噪声，中心频率慢慢摆动）。
+ * 环境声循环：海浪（低沉的噪声随浪涌起伏，浪头上带一点沙沙声）、风（带通噪声，中心频率慢慢摆动）、
+ * 椰林（调低的风吹树叶 + 远处的海浪，隔一会儿有一声鸟叫）。
  * 调制的周期都能整除循环长度；多渲染一小段，交叉淡化进开头，循环接缝听不出来。
  */
 export function renderAmbience(id: AmbienceId, sr = SAMPLE_RATE, seconds = 8): Rendered {
@@ -16,7 +17,44 @@ export function renderAmbience(id: AmbienceId, sr = SAMPLE_RATE, seconds = 8): R
   for (let ch = 0; ch < 2; ch++) {
     const noise = new Noise(11 + ch * 97);
     const buf = out[ch]!;
-    if (id === 'sea') {
+    if (id === 'grove') {
+      // 远处的海：只留低沉的部分，再小一点
+      let brown = 0;
+      let lp = 0;
+      // 树叶：比风更高、更碎的带通噪声
+      let low = 0;
+      let band = 0;
+      const shift = ch * 1.1;
+      for (let i = 0; i < total; i++) {
+        const t = i / sr + shift;
+        const w = noise.next();
+        brown = brown * 0.995 + w * 0.06;
+        lp += (brown - lp) * 0.05;
+        const swell = (0.5 - 0.5 * Math.cos((TAU * t) / 8)) ** 2;
+        const fc = 1500 + 500 * Math.sin((TAU * t) / 4) + 250 * Math.sin((TAU * t * 3) / 8 + ch);
+        const f = 2 * Math.sin((Math.PI * fc) / sr);
+        low += f * band;
+        const high = w - low - 0.5 * band;
+        band += f * high;
+        const rustle = 0.35 + 0.65 * Math.sin((TAU * t) / 2 + ch) ** 4;
+        buf[i] = lp * (0.4 + 0.6 * swell) * 0.9 + band * rustle * 0.08;
+      }
+      // 鸟叫：每 8 秒一声"啾啾"（两下往上滑的短音），左右声道错开
+      const chirp = (t0: number, f0: number) => {
+        for (let k = 0; k < 2; k++) {
+          const start = Math.round((t0 + k * 0.12) * sr);
+          const dur = Math.round(0.07 * sr);
+          let ph = 0;
+          for (let i = 0; i < dur && start + i < total; i++) {
+            const tt = i / sr;
+            ph += (f0 + 900 * (tt / 0.07)) / sr;
+            const env = Math.sin(Math.PI * (i / dur));
+            buf[start + i]! += Math.sin(TAU * ph) * env * 0.05;
+          }
+        }
+      };
+      chirp(ch === 0 ? 2.3 : 5.9, ch === 0 ? 2600 : 2900);
+    } else if (id === 'sea') {
       let brown = 0;
       let lp = 0;
       let hp = 0;

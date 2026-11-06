@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/engine';
 import { LEVELS } from '../content/levels';
+import { mapUnlocked } from '../content/map';
 import { CREDITS, MENU_TEXT } from '../content/text';
 import { currentLayout, VIEW_H, VIEW_W, type Layout } from '../platform/display';
 import { InputDevices } from '../platform/input';
@@ -340,8 +341,8 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private continueGame(): void {
-    // 通关过 1-1 就直接去 1-2（章节地图在 M2-b）
-    if (this.save.levels['1-1']?.cleared) this.leave('level', { levelId: '1-2' });
+    // 通关过 1-1 就去章节地图；否则接着玩 1-1
+    if (mapUnlocked(this.save)) this.leave('map');
     else this.leave('level', { levelId: '1-1', intro: !this.save.flags.includes('introSeen') });
   }
 

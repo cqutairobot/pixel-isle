@@ -7,7 +7,7 @@ import { NPC_TALK_12 } from './dialog/1-2';
 import type { Line } from './dialog/line';
 import { UI_TEXT } from './text';
 
-/** 每一关自己的剧情内容：过场分镜、NPC 对白、进关横幅、结算标题、通关后去哪 */
+/** 每一关自己的剧情内容：过场分镜、NPC 对白、进关标题卡、结算标题、提示 */
 export interface LevelContent {
   cutscenes: Record<string, (d: Director) => Promise<void>>;
   talk: Record<string, { first: Line[]; again: Line[]; after?: Line[] }>;
@@ -24,9 +24,6 @@ export interface LevelContent {
   crabHint?: boolean;
   /** 碰到第几个检查点时回回说的话 */
   checkpointHints?: Record<number, string>;
-  /** 结算选"继续"以后去哪一关；没有就显示 comingSoon 的卡片，然后回到标题 */
-  next?: string;
-  comingSoon?: string;
 }
 
 export const LEVEL_CONTENT: Record<string, LevelContent> = {
@@ -40,7 +37,6 @@ export const LEVEL_CONTENT: Record<string, LevelContent> = {
     clearHint: 'gate',
     crabHint: true,
     checkpointHints: { 2: 'cp2' },
-    next: '1-2',
   },
   '1-2': {
     cutscenes: CUTSCENES_12,
@@ -48,6 +44,5 @@ export const LEVEL_CONTENT: Record<string, LevelContent> = {
     banner: UI_TEXT.levelTitle12,
     tallyTitle: UI_TEXT.tallyTitle12,
     clearHint: 'gate2',
-    comingSoon: UI_TEXT.comingSoon3,
   },
 };

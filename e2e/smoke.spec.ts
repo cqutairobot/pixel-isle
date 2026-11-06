@@ -276,3 +276,66 @@ test('第 2 关：开场借到海星（长按跳过），扔海星打倒隧道�
   expect(await page.evaluate(() => (window.__level as unknown as L12).world.hearts)).toBe(3);
   expect(errors).toEqual([]);
 });
+
+test('通关过 1-1 的存档：标题"继续" → 章节地图 → 跳到 1-2 → 关卡卡片 → 进关', async ({ page }) => {
+  const errors = collectErrors(page);
+  const save = {
+    version: 2,
+    levels: {
+      '1-1': { cleared: true, bestFrames: 5321, glass: [true, false, true], noDamage: false },
+    },
+    shells: 40,
+    flags: ['introSeen', 'prologueSeen'],
+    equipment: [],
+    map: { node: '1-1', opened: [], chatter: [] },
+  };
+  await page.addInitScript((s) => localStorage.setItem('pixel-isle.save', s), JSON.stringify(save));
+  await page.goto('/');
+  await page.waitForFunction(() => window.__title, null, { timeout: 60_000 });
+  for (let i = 0; i < 4 && (await page.evaluate(() => window.__title!.stage)) !== 'menu'; i++) {
+    await page.keyboard.press('KeyK');
+    await page.waitForTimeout(700);
+  }
+  await page.waitForFunction(() => window.__title!.stage === 'menu', null, { timeout: 20_000 });
+  // 有存档时第一项是"继续"
+  await page.keyboard.press('KeyK');
+  await page.waitForFunction(() => !!(window as unknown as { __map?: unknown }).__map, null, {
+    timeout: 30_000,
+  });
+  // 等通往 1-2 的路解锁完，再往右跳
+  await page.waitForFunction(
+    () => {
+      const m = (window as unknown as { __map?: { revealing: boolean } }).__map;
+      return !!m && !m.revealing;
+    },
+    null,
+    { timeout: 20_000 },
+  );
+  await page.waitForTimeout(400);
+  await page.keyboard.press('KeyD');
+  await page.waitForFunction(
+    () => {
+      const m = (window as unknown as { __map?: { at: string; hop: unknown } }).__map;
+      return m?.at === '1-2' && !m.hop;
+    },
+    null,
+    { timeout: 20_000 },
+  );
+  await page.screenshot({ path: 'test-results/map.png' });
+  await page.keyboard.press('KeyK');
+  await page.waitForFunction(
+    () => !!(window as unknown as { __map?: { ui: { modal: unknown } } }).__map?.ui.modal,
+    null,
+    { timeout: 5_000 },
+  );
+  await page.waitForTimeout(500);
+  await page.keyboard.press('KeyK');
+  await page.waitForFunction(
+    () =>
+      (window.__level as unknown as { levelId?: string } | undefined)?.levelId === '1-2' &&
+      (window.__level?.world.frame ?? 0) > 5,
+    null,
+    { timeout: 30_000 },
+  );
+  expect(errors).toEqual([]);
+});

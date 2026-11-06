@@ -1,7 +1,7 @@
 /**
  * 音乐合成器（纯 TS，不依赖浏览器）：把一个音渲染成采样。
  * 音色：方波（12.5% / 25% / 50% 占空比，PolyBLEP 去锯齿）、三角波、钢鼓、马林巴、铃、
- * 柔和的垫音，以及噪声鼓组（底鼓、军鼓、踩镲、沙锤、拍手）。
+ * 柔和的垫音，以及鼓组（底鼓、军鼓、踩镲、沙锤、拍手、木鱼）。
  * 在 Node 里也能跑，tests/music.test.ts 用它检查循环接缝和峰值。
  */
 
@@ -18,7 +18,8 @@ export type Inst =
   | 'snare'
   | 'hat'
   | 'shaker'
-  | 'clap';
+  | 'clap'
+  | 'wood';
 
 /** 乐谱里的鼓字母 → 音色 */
 export const DRUMS: Record<string, Inst> = {
@@ -27,6 +28,7 @@ export const DRUMS: Record<string, Inst> = {
   h: 'hat',
   x: 'shaker',
   c: 'clap',
+  w: 'wood',
 };
 
 const TABLE = 4096;
@@ -94,6 +96,7 @@ export function tailOf(inst: Inst): number {
     case 'hat':
     case 'shaker':
     case 'clap':
+    case 'wood':
       return 0.12;
     default:
       return 0.08;
@@ -260,6 +263,19 @@ export function renderNote(
         hp = 0.85 * (hp + n - prev);
         prev = n;
         out[i] = (hp * 0.55 * Math.exp(-t * 20) + sinT(190 * t) * 0.35 * Math.exp(-t * 30)) * vel;
+      }
+      break;
+    }
+    case 'wood': {
+      // 木鱼：两个不协和的正弦很快衰减，开头一点点噪声"咔"
+      let p1 = 0;
+      let p2 = 0;
+      for (let i = 0; i < len; i++) {
+        const t = i / sr;
+        p1 += 1180 / sr;
+        p2 += 1720 / sr;
+        const click = t < 0.0015 ? noise.next() * 0.5 : 0;
+        out[i] = ((sinT(p1) * 0.7 + sinT(p2) * 0.3) * Math.exp(-t * 60) + click) * 0.55 * vel;
       }
       break;
     }

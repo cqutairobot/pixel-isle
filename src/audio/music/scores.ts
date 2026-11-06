@@ -247,6 +247,155 @@ export const NIGHT: Score = {
   ],
 };
 
+// —— 1-2「椰影小径」：G 大调，116 BPM，A A B A'（32 小节）——
+// 马林巴主旋律、木鱼和沙锤、拨弦感的方波低音；A 段借一个 F（降七级）带出一点林荫下的神秘
+
+/** G 大调这一段用到的和弦 → [垫音和弦, 低音型, 马林巴琶音] */
+const GCH: Record<string, [string, string, string]> = {
+  G: ['B3+D4+G4', 'G2:3 r:1 G2:2 D3:2 G2:3 r:1 D3:4', 'G4:2 B4:2 D5:2 G5:2 D5:2 B4:2 G4:2 B4:2'],
+  F: ['A3+C4+F4', 'F2:3 r:1 F2:2 C3:2 F2:3 r:1 C3:4', 'F4:2 A4:2 C5:2 F5:2 C5:2 A4:2 F4:2 A4:2'],
+  C: ['C4+E4+G4', 'C3:3 r:1 C3:2 G2:2 C3:3 r:1 G2:4', 'C5:2 E5:2 G5:2 C6:2 G5:2 E5:2 C5:2 E5:2'],
+  D: [
+    'A3+D4+F#4',
+    'D3:3 r:1 D3:2 A2:2 D3:3 r:1 A2:4',
+    'D5:2 F#5:2 A5:2 D6:2 A5:2 F#5:2 D5:2 F#5:2',
+  ],
+  Em: ['B3+E4+G4', 'E2:3 r:1 E2:2 B2:2 E2:3 r:1 B2:4', 'E5:2 G5:2 B5:2 E6:2 B5:2 G5:2 E5:2 G5:2'],
+  Am: ['A3+C4+E4', 'A2:3 r:1 A2:2 E3:2 A2:3 r:1 E3:4', 'A4:2 C5:2 E5:2 A5:2 E5:2 C5:2 A4:2 C5:2'],
+  D7: [
+    'A3+C4+F#4',
+    'D3:3 r:1 D3:2 A2:2 F#2:3 r:1 A2:4',
+    'D5:2 F#5:2 A5:2 C6:2 A5:2 F#5:2 D5:2 F#5:2',
+  ],
+};
+const G_A = ['G', 'F', 'C', 'D', 'Em', 'C', 'Am', 'D'];
+const G_A3 = ['G', 'F', 'C', 'D', 'Em', 'C', 'Am', 'G'];
+const G_B = ['Em', 'C', 'G', 'D', 'Em', 'C', 'Am', 'D7'];
+const G_PROG = [...G_A, ...G_A, ...G_B, ...G_A3];
+const GMEL_A = [
+  'D5:2 G5:2 B5:2 A5:2 G5:4 D5:4',
+  'C5:2 F5:2 A5:2 G5:2 F5:4 C5:4',
+  'E5:3 G5:3 E5:2 C5:4 E5:4',
+  'F#5:3 E5:3 D5:2 A4:6 r:2',
+  'B4:2 E5:2 G5:2 F#5:2 E5:4 B4:4',
+  'C5:2 E5:2 G5:2 A5:2 G5:4 E5:4',
+  'A5:3 G5:3 E5:2 C5:2 D5:2 E5:4',
+  'D5:6 r:2 A4:2 B4:2 C5:2 A4:2',
+];
+const GMEL_A2 = [...GMEL_A.slice(0, 7), 'D5:4 F#5:4 A5:4 C6:4'];
+const GMEL_B = [
+  'G5:4 F#5:4 E5:4 B4:4',
+  'C5:4 E5:4 G5:6 E5:2',
+  'D5:4 G5:4 B5:6 A5:2',
+  'A5:6 F#5:2 D5:8',
+  'E5:2 G5:2 B5:2 E6:2 D6:4 B5:4',
+  'C6:4 B5:4 G5:4 E5:4',
+  'A5:3 G5:3 E5:2 C5:4 E5:4',
+  'F#5:4 A5:4 C6:4 D6:4',
+];
+const GMEL_A3 = [...GMEL_A.slice(0, 7), 'G5:4 D5:2 G5:2 B5:4 G5:4'];
+
+export const GROVE: Score = {
+  id: 'grove',
+  title: '1-2「椰影小径」',
+  bpm: 116,
+  bars: 32,
+  loop: true,
+  gain: 0.9,
+  tracks: [
+    {
+      inst: 'marimba',
+      vol: 0.55,
+      pan: 0.1,
+      echo: 0.2,
+      notes: [...GMEL_A, ...GMEL_A2, ...GMEL_B, ...GMEL_A3],
+    },
+    { inst: 'pulse50', vol: 0.2, notes: G_PROG.map((c) => GCH[c]![1]), gate: 0.35 },
+    { inst: 'pad', vol: 0.1, pan: -0.2, notes: G_PROG.map((c) => `${GCH[c]![0]}:16`) },
+    {
+      inst: 'steel',
+      vol: 0.22,
+      pan: -0.35,
+      echo: 0.25,
+      notes: [...bars(16, 'r:16'), ...G_B.map((c) => GCH[c]![2]), ...bars(8, 'r:16')],
+    },
+    { inst: 'wood', vol: 0.32, pan: 0.3, notes: bars(32, 'w:3 w:3 w:4 w:2 w:4') },
+    { inst: 'shaker', vol: 0.07, pan: -0.3, notes: bars(32, 'x:2 x:2 x:2 x:2 x:2 x:2 x:2 x:2') },
+    { inst: 'kick', vol: 0.38, notes: bars(32, 'k:8 k:8') },
+    { inst: 'hat', vol: 0.06, pan: 0.25, notes: bars(32, 'r:2 h:2 r:2 h:2 r:2 h:2 r:2 h:2') },
+  ],
+};
+
+// —— 地图曲「时令岛」：D 大调，100 BPM，16 小节 ——
+// 口哨一样的细方波旋律，钢鼓在反拍上点缀，悠闲的散步感
+
+const DCH: Record<string, [string, string]> = {
+  D: ['A3+D4+F#4', 'D3:4 A2:4 D3:4 A2:4'],
+  Bm: ['B3+D4+F#4', 'B2:4 F#2:4 B2:4 F#2:4'],
+  G: ['B3+D4+G4', 'G2:4 D3:4 G2:4 D3:4'],
+  A: ['A3+C#4+E4', 'A2:4 E3:4 A2:4 E3:4'],
+  Em: ['B3+E4+G4', 'E3:4 B2:4 E3:4 B2:4'],
+  'F#m': ['A3+C#4+F#4', 'F#2:4 C#3:4 F#2:4 C#3:4'],
+};
+const D_PROG = [
+  'D',
+  'Bm',
+  'G',
+  'A',
+  'D',
+  'Bm',
+  'Em',
+  'A',
+  'G',
+  'A',
+  'F#m',
+  'Bm',
+  'G',
+  'A',
+  'D',
+  'D',
+];
+const DMEL = [
+  'F#5:4 A5:4 D6:6 A5:2',
+  'B5:4 A5:2 F#5:2 D5:8',
+  'G5:4 B5:4 D6:4 B5:4',
+  'A5:6 G5:2 E5:8',
+  'F#5:4 A5:4 D6:6 E6:2',
+  'F#6:4 E6:2 D6:2 B5:8',
+  'G5:4 B5:4 E6:4 D6:4',
+  'C#6:8 A5:8',
+  'B5:4 D6:4 G6:6 F#6:2',
+  'E6:4 C#6:4 A5:8',
+  'A5:4 C#6:4 F#6:6 E6:2',
+  'D6:4 B5:4 F#5:8',
+  'G5:2 A5:2 B5:2 D6:2 G6:4 F#6:4',
+  'E6:4 D6:2 C#6:2 E6:8',
+  'D6:6 A5:2 F#5:4 A5:4',
+  'D6:12 r:4',
+];
+
+export const MAP: Score = {
+  id: 'map',
+  title: '地图「时令岛」',
+  bpm: 100,
+  bars: 16,
+  loop: true,
+  gain: 0.85,
+  tracks: [
+    { inst: 'pulse12', vol: 0.2, pan: 0.05, echo: 0.25, notes: DMEL, gate: 0.85 },
+    { inst: 'tri', vol: 0.45, notes: D_PROG.map((c) => DCH[c]![1]), gate: 0.7 },
+    {
+      inst: 'steel',
+      vol: 0.2,
+      pan: -0.3,
+      echo: 0.2,
+      notes: D_PROG.map((c) => `r:4 ${DCH[c]![0]}:2 r:6 ${DCH[c]![0]}:2 r:2`),
+    },
+    { inst: 'shaker', vol: 0.06, pan: 0.3, notes: bars(16, 'x:4 x:4 x:4 x:4') },
+    { inst: 'kick', vol: 0.3, notes: bars(16, 'k:8 k:8') },
+  ],
+};
+
 // —— 乐句（不循环）——
 
 export const JINGLES: Record<string, Score> = {
@@ -345,4 +494,6 @@ export const SONGS: Record<string, Score> = {
   beach: BEACH,
   sun: SUN,
   night: NIGHT,
+  grove: GROVE,
+  map: MAP,
 };

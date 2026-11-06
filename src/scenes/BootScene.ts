@@ -7,7 +7,7 @@ export { UI_FONT };
 
 /** 启动后进入哪个场景（由 main.ts 按网址决定） */
 export interface BootTarget {
-  scene: 'gym' | 'level' | 'title';
+  scene: 'gym' | 'level' | 'title' | 'map';
   data?: Record<string, unknown>;
 }
 

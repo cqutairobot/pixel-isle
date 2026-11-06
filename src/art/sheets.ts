@@ -7,6 +7,7 @@ import { fx2Sheet } from './fx2';
 import { groveSheet } from './grove';
 import { heroSheet } from './hero';
 import { itemSheet } from './items';
+import { mapSheet } from './mapArt';
 import { npcSheet } from './npcs';
 import type { ImageSheet } from './paint';
 import { portraitSheet } from './portraits';
@@ -29,6 +30,7 @@ export const allImageSheets: ImageSheet[] = [
   portraitSheet,
   equipSheet,
   groveSheet,
+  mapSheet,
 ];
 
 /** 全部帧：名字形如 hero/run_3 */

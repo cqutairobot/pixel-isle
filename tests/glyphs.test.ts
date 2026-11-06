@@ -9,7 +9,10 @@ import {
   NPC_TALK,
   PROLOGUE,
 } from '../src/content/dialog/1-1';
-import { HINTS, KEY_HINTS, UI_TEXT } from '../src/content/text';
+import { MAP_CHATTER, NPC_TALK_12, STARFISH_OPENING } from '../src/content/dialog/1-2';
+import { EQUIPMENT } from '../src/content/equipment';
+import { MAP_NODES } from '../src/content/map';
+import { HINTS, KEY_HINTS, MAP_TEXT, UI_TEXT } from '../src/content/text';
 import { DIALOG_MAX_LINES, DIALOG_TEXT_W, NARRATOR_TEXT_W } from '../src/ui/dialogBox';
 import { parseRich, plainText, wrapChars } from '../src/ui/text/layout';
 
@@ -68,7 +71,21 @@ describe('文本不超出文本框', () => {
     for (const l of ADOU_SOLVED) expect(lines(l.text, 150), l.text).toBeLessThanOrEqual(3);
   });
 
-  it('"制作中"卡片最多 2 行（宽 280）', () => {
-    expect(lines(UI_TEXT.comingSoon, 280)).toBeLessThanOrEqual(2);
+  it('地图卡片："正在制作中"一行放得下（宽 180），关卡名不超出卡片', () => {
+    expect(lines(MAP_TEXT.soon, 180)).toBe(1);
+    for (const n of MAP_NODES) expect(lines(`${n.id} ${n.name}`, 186), n.name).toBe(1);
+  });
+
+  it('1-2 的对白、地图闲聊不超出对话框；获得道具横幅的用法一行放得下', () => {
+    const all = [
+      ...STARFISH_OPENING.flat(),
+      ...Object.values(NPC_TALK_12).flatMap((n) => [...n.first, ...n.again]),
+    ];
+    for (const l of all)
+      expect(lines(l.text, DIALOG_TEXT_W), l.text).toBeLessThanOrEqual(DIALOG_MAX_LINES);
+    for (const l of Object.values(MAP_CHATTER).flat())
+      expect(lines(l.text, 150), l.text).toBeLessThanOrEqual(3);
+    for (const e of Object.values(EQUIPMENT))
+      for (const u of Object.values(e.usage)) expect(lines(u, 236), u).toBe(1);
   });
 });

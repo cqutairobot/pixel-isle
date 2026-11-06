@@ -198,8 +198,7 @@ export const level12: LevelDef = {
   themes: [{ from: 0, theme: 'grove' }],
   // 回回从第 1 关的钟楼起就一直跟着小满
   flags: ['huihui'],
-  // 1-2 的曲子在 M2-b 才写，先用沙滩那首
-  music: 'beach',
+  music: 'grove',
   // 椰林里的 = 是藤蔓吊桥
   legend: { '=': { tile: T_ONEWAY, material: MAT_VINE } },
   entities: [

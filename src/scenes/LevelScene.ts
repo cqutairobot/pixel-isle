@@ -3,10 +3,11 @@ import { audio } from '../audio/engine';
 import { END_STATES } from '../content/cutscenes/endStates';
 import { ADOU_SOLVED } from '../content/dialog/1-1';
 import { EQUIPMENT, EQUIPMENT_IDS } from '../content/equipment';
+import { mapUnlocked } from '../content/map';
 import { LEVEL_CONTENT, type LevelContent } from '../content/levelContent';
 import type { Line } from '../content/dialog/line';
 import { LEVELS } from '../content/levels';
-import { HINTS, MENU_TEXT, UI_TEXT } from '../content/text';
+import { HINTS, MAP_TEXT, MENU_TEXT, UI_TEXT } from '../content/text';
 import { DebugOverlay } from '../debug/overlay';
 import { currentLayout, VIEW_H, VIEW_W, type Layout } from '../platform/display';
 import { InputDevices } from '../platform/input';
@@ -27,7 +28,7 @@ import { parseLevel, standAt, type ParsedLevel } from '../sim/level';
 import { cloneTuning, PRESETS } from '../sim/tuning';
 import { World } from '../sim/world';
 import { settings, SHAKE_INTENSITY } from '../platform/settings';
-import { ConfirmBox, InfoCard } from '../ui/panelModal';
+import { ConfirmBox } from '../ui/panelModal';
 import { ItemGet } from '../ui/itemGet';
 import { PauseMenu } from '../ui/pauseMenu';
 import { SettingsPanel } from '../ui/settingsPanel';
@@ -233,7 +234,7 @@ export class LevelScene extends Phaser.Scene {
     if (this.ui.transition.covered) void this.ui.transition.reveal(0.7);
     else this.cameras.main.fadeIn(500, ...FADE);
     audio.music.play(this.level.music ?? 'beach', 1.5);
-    audio.music.ambience('sea');
+    audio.music.ambience(this.ambience());
     const c = this.content;
     const startKey = c.startKey;
     if (!cp && data.intro !== false && c.intro && c.cutscenes[c.intro]) {
@@ -247,6 +248,11 @@ export class LevelScene extends Phaser.Scene {
     } else if (startKey)
       this.time.delayedCall(700, () => this.ui.keyHint.show(startKey, this.scheme()));
     else if (!cp) this.time.delayedCall(600, () => this.showTitleCard());
+  }
+
+  /** 环境声：椰林里是风吹树叶加远处的海浪，其他地方是海浪 */
+  private ambience(): 'sea' | 'grove' {
+    return this.level.themes[0]?.theme === 'grove' ? 'grove' : 'sea';
   }
 
   /** 关卡开场标题卡：章节名、关卡名、本关找到过的海玻璃 */
@@ -372,10 +378,16 @@ export class LevelScene extends Phaser.Scene {
               toast: (t) => this.ui.toast.show(t),
             }),
           ),
+        // 地图开放以后，暂停菜单的最后一项是"回到地图"（地图菜单里再回标题）
+        leaveLabel: mapUnlocked(this.save) ? MAP_TEXT.toMap : undefined,
         toTitle: () =>
-          this.ui.openModal(
-            new ConfirmBox(this.ui.host, MENU_TEXT.toTitleConfirm, () => this.gotoTitle()),
-          ),
+          mapUnlocked(this.save)
+            ? this.ui.openModal(
+                new ConfirmBox(this.ui.host, MENU_TEXT.toMapConfirm, () => this.gotoMap()),
+              )
+            : this.ui.openModal(
+                new ConfirmBox(this.ui.host, MENU_TEXT.toTitleConfirm, () => this.gotoTitle()),
+              ),
       });
       this.ui.openModal(this.pauseMenu);
     } else if (!on && this.pauseMenu) {
@@ -394,10 +406,11 @@ export class LevelScene extends Phaser.Scene {
       .then(() => this.scene.restart({ levelId: this.levelId, intro: false }));
   }
 
-  private gotoLevel(id: string): void {
+  /** 回到章节地图（通关后会在地图上播放路径解锁） */
+  private gotoMap(): void {
     if (this.leaving) return;
     this.leaving = true;
-    void this.ui.transition.run('bell', true, 0.7).then(() => this.scene.restart({ levelId: id }));
+    void this.ui.transition.run('bell', true, 0.7).then(() => this.scene.start('map'));
   }
 
   private gotoTitle(): void {
@@ -622,7 +635,7 @@ export class LevelScene extends Phaser.Scene {
   /** 过场里换音乐：音乐停下时只留风声 */
   private playMusic(id: string | null): void {
     audio.music.play(id, id ? 1.2 : 1.5);
-    if (this.mode === 'play') audio.music.ambience(id ? 'sea' : 'wind');
+    if (this.mode === 'play') audio.music.ambience(id ? this.ambience() : 'wind');
   }
 
   private dialogSounds(): DirectorHost['dialog'] {
@@ -894,21 +907,9 @@ export class LevelScene extends Phaser.Scene {
           this.restartLevel();
           return;
         }
-        // 继续：去下一关（章节地图在 M2-b）；下一关还在做的话先显示"制作中"，然后回到标题
+        // 继续：回到章节地图，播放通往下一关的路径解锁
         this.ui.closeAll();
-        const next = this.content.next;
-        if (next) {
-          this.gotoLevel(next);
-          return;
-        }
-        this.ui.openModal(
-          new InfoCard(
-            this.ui.host,
-            this.content.tallyTitle,
-            [this.content.comingSoon ?? UI_TEXT.comingSoon],
-            () => this.gotoTitle(),
-          ),
-        );
+        this.gotoMap();
       },
       (s: TallySfx) =>
         audio.play(s === 'pop' ? 'glass' : s === 'move' ? 'ui' : s, {

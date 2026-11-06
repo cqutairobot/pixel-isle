@@ -5,13 +5,14 @@ import { currentLayout } from './platform/display';
 import { BootScene, type BootTarget } from './scenes/BootScene';
 import { GymScene } from './scenes/GymScene';
 import { LevelScene } from './scenes/LevelScene';
+import { MapScene } from './scenes/MapScene';
 import { TitleScene } from './scenes/TitleScene';
 import { UIScene } from './scenes/UIScene';
 
 const params = new URLSearchParams(location.search);
 /**
  * 页面路由（在线试玩页不支持 ?参数，只能用 #名字）：
- * 默认进标题画面；#1-1 直接进第 1 关；#prologue 序章；#gym 练习场；#soundboard 试听板。
+ * 默认进标题画面；#1-1、#1-2 直接进关；#map 章节地图；#prologue 序章；#gym 练习场；#soundboard 试听板。
  * 本地开发还可以用 ?level=1-1、?cp=2（从第 2 个检查点开始）、?intro=0（不播开场）。
  */
 const route = location.hash.slice(1);
@@ -19,6 +20,7 @@ const route = location.hash.slice(1);
 function bootTarget(): BootTarget {
   if (route === 'gym' || params.get('scene') === 'gym') return { scene: 'gym' };
   if (route === 'prologue') return { scene: 'level', data: { levelId: '1-1', mode: 'prologue' } };
+  if (route === 'map') return { scene: 'map' };
   const level = params.get('level') ?? (/^\d+-\d+$/.test(route) ? route : null);
   if (!level) return { scene: 'title', data: { boot: true } };
   const cp = Number(params.get('cp') ?? 0);
@@ -45,7 +47,7 @@ function startGame(): void {
     fps: { smoothStep: false },
     banner: false,
     // 界面场景排在最后，画在最上面
-    scene: [BootScene, TitleScene, GymScene, LevelScene, UIScene],
+    scene: [BootScene, TitleScene, MapScene, GymScene, LevelScene, UIScene],
   });
   game.registry.set('bootTarget', bootTarget());
   window.addEventListener('resize', () => {
