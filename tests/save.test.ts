@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addEquipment,
   emptySave,
   formatTime,
   loadSave,
@@ -68,6 +69,38 @@ describe('存档', () => {
       noDamage: false,
     });
     expect(d.levels.x).toBeUndefined();
+  });
+
+  it('v1 → v2：海星从剧情标记挪进装备，其他标记和关卡记录都保留', () => {
+    const v1 = {
+      version: 1,
+      shells: 57,
+      flags: ['introSeen', 'starfish', 'talk:haishen'],
+      levels: { '1-1': { cleared: true, bestFrames: 4321, glass: [true, false, true] } },
+    };
+    const d = migrate(v1);
+    expect(d.version).toBe(2);
+    expect(d.equipment).toEqual(['starfish']);
+    expect(d.flags).toEqual(['introSeen', 'talk:haishen']);
+    expect(d.shells).toBe(57);
+    expect(d.levels['1-1']!.bestFrames).toBe(4321);
+    // 地图从第一个节点开始；还没播放过的解锁动画留到第一次打开地图
+    expect(d.map).toEqual({ node: '1-1', opened: [], chatter: [] });
+  });
+
+  it('v2 写入再读出：装备和地图状态不变；看不懂的地图字段丢掉', () => {
+    const kv = memory();
+    const d = emptySave();
+    addEquipment(d, 'starfish');
+    addEquipment(d, 'starfish');
+    d.map = { node: '1-2', opened: ['1-2'], chatter: ['to12'] };
+    writeSave(d, kv);
+    const back = loadSave(kv);
+    expect(back.equipment).toEqual(['starfish']);
+    expect(back.map).toEqual({ node: '1-2', opened: ['1-2'], chatter: ['to12'] });
+    const junk = migrate({ version: 2, equipment: ['starfish', 5], map: { node: 3, opened: 'x' } });
+    expect(junk.equipment).toEqual(['starfish']);
+    expect(junk.map).toEqual({ node: '1-1', opened: [], chatter: [] });
   });
 
   it('没有存储（隐私模式）时照样能玩', () => {

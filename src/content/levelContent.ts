@@ -51,6 +51,3 @@ export const LEVEL_CONTENT: Record<string, LevelContent> = {
     comingSoon: UI_TEXT.comingSoon3,
   },
 };
-
-/** 存进存档、以后每一关都带着的剧情标记（拿到的装备） */
-export const PERSISTENT_FLAGS = ['starfish'];

@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { audio } from '../audio/engine';
 import { END_STATES } from '../content/cutscenes/endStates';
 import { ADOU_SOLVED } from '../content/dialog/1-1';
-import { LEVEL_CONTENT, PERSISTENT_FLAGS, type LevelContent } from '../content/levelContent';
+import { EQUIPMENT_IDS } from '../content/equipment';
+import { LEVEL_CONTENT, type LevelContent } from '../content/levelContent';
 import type { Line } from '../content/dialog/line';
 import { LEVELS } from '../content/levels';
 import { HINTS, MENU_TEXT, UI_TEXT } from '../content/text';
@@ -10,6 +11,7 @@ import { DebugOverlay } from '../debug/overlay';
 import { currentLayout, VIEW_H, VIEW_W, type Layout } from '../platform/display';
 import { InputDevices } from '../platform/input';
 import {
+  addEquipment,
   emptySave,
   loadSave,
   recordClear,
@@ -147,7 +149,7 @@ export class LevelScene extends Phaser.Scene {
         assist: settings.assist,
         foundGlass: this.save.levels[this.levelId]?.glass ?? [],
         // 拿到过的装备（海星）一直带着；再玩 1-2 时不再重播开场
-        flags: PERSISTENT_FLAGS.filter((f) => this.save.flags.includes(f)),
+        flags: [...this.save.equipment],
       },
       VIEW_W,
       VIEW_H,
@@ -444,9 +446,9 @@ export class LevelScene extends Phaser.Scene {
         const end = END_STATES[id] ?? {};
         w.resolveTrigger(end);
         // 拿到的装备记进存档
-        const keep = (end.flags ?? []).filter((f) => PERSISTENT_FLAGS.includes(f));
-        if (keep.length) {
-          for (const f of keep) setFlag(this.save, f);
+        const got = (end.flags ?? []).filter((f) => EQUIPMENT_IDS.includes(f));
+        if (got.length) {
+          for (const f of got) addEquipment(this.save, f);
           writeSave(this.save);
         }
         if (!hadEquip && w.equipment.length) {
