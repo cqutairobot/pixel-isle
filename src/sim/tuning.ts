@@ -273,4 +273,10 @@ export const RULES = {
   goatFleeFrames: 45,
   goatReturnDelay: 120,
   goatLeapFrames: 30,
+  /** 崖燕：飞行速度、出发前在画面边上警示多久、同一组里一只隔多久出发 */
+  swallowSpeed: 180,
+  swallowWarnFrames: 45,
+  swallowGap: 16,
+  /** 羊圈顶上的冰晶要踩几下 */
+  crystalHits: 3,
 } as const;

@@ -118,6 +118,22 @@ export type SimEvent =
   | { type: 'goatReturn'; x: number; y: number; fromX: number; fromY: number }
   | { type: 'goatLand'; x: number; y: number }
   /** 摸摸咩铃 */
-  | { type: 'pet'; x: number; y: number };
+  | { type: 'pet'; x: number; y: number }
+  // —— 第 3 关的机关和崖燕 ——
+  /** 冲撞撞碎一整块裂岩：cells 是碎掉的格子，(x, y) 是这一块的中心 */
+  | { type: 'rockBreak'; cells: Array<[number, number]>; x: number; y: number }
+  /** 羊圈顶上的冰晶被踩了一下（stage 是第几下）、碎了、被海星打到弹开 */
+  | { type: 'crystalHit'; stage: number; x: number; y: number }
+  | { type: 'crystalBreak'; x: number; y: number }
+  | { type: 'crystalClink'; x: number; y: number }
+  /** 回声铃响了（石门已经开了以后再敲，只响不触发过场） */
+  | { type: 'echoRing'; x: number; y: number }
+  /** 石门打开：cells 是石门占的格子 */
+  | { type: 'gateOpen'; cells: Array<[number, number]> }
+  /**
+   * 一组崖燕要来了：在画面 from 那一侧（1 右、-1 左）的边上警示 frames 帧，
+   * ys 是每只要飞的高度（世界 y）
+   */
+  | { type: 'swallowWarn'; flock: number; from: 1 | -1; ys: number[]; frames: number };
 
 export type SimEventType = SimEvent['type'];

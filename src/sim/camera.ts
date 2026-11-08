@@ -45,7 +45,12 @@ export const DEFAULT_CAMERA: CameraTuning = {
 export interface CameraStepOptions {
   /** 移动时往前多看多少（骑着咩铃时用固定的大前瞻）；不写按走速、跑速算 */
   lookAhead?: number;
+  /** 纵向镜头区域：不等落地，连续跟着高度；往上跳时多看上面一点 */
+  vertical?: boolean;
 }
+
+/** 纵向镜头区域里往上跳时多看上面多少 */
+const VERTICAL_LEAD = 32;
 
 /** 镜头逻辑放在 sim 里，保证回放时镜头也完全确定。x, y 是视野左上角（世界像素，可为小数）。 */
 export class SimCamera {
@@ -100,8 +105,12 @@ export class SimCamera {
     const targetX = this.clampX(this.focusX + this.look - this.viewW / 2);
     this.x = smoothDamp(this.x, targetX, this.refX, t.followSmooth, DT);
 
-    // 垂直：站在地上时才更新高度（平台吸附），腾空时只在越过边界后跟随
-    if (player.onGround) this.groundTargetY = b.bottom - this.viewH * t.groundLine;
+    // 垂直：站在地上时才更新高度（平台吸附），腾空时只在越过边界后跟随；
+    // 纵向镜头区域里每一步都跟着高度，往上跳时多看上面一点
+    if (opts.vertical)
+      this.groundTargetY =
+        b.bottom - this.viewH * t.groundLine - (player.vy < 0 ? VERTICAL_LEAD : 0);
+    else if (player.onGround) this.groundTargetY = b.bottom - this.viewH * t.groundLine;
     let targetY = this.groundTargetY;
     let fast = false;
     if (b.y < this.y + this.viewH * t.topMargin) {

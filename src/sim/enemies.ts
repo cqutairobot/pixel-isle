@@ -24,6 +24,14 @@ export const ENEMY_SPECS: Record<EnemyKind, EnemySpec> = {
   urchin: { w: 12, h: 12, speed: RULES.urchinCrawl, turnAtEdges: true, spiky: true, flying: false },
   urchinHang: { w: 12, h: 12, speed: 0, turnAtEdges: true, spiky: true, flying: false },
   gull: { w: 16, h: 12, speed: RULES.gullSpeed, turnAtEdges: false, spiky: false, flying: true },
+  swallow: {
+    w: 14,
+    h: 8,
+    speed: RULES.swallowSpeed,
+    turnAtEdges: false,
+    spiky: false,
+    flying: true,
+  },
 };
 
 export type EnemyFate = 'water' | 'pit' | null;
@@ -45,8 +53,10 @@ export interface EnemyContext {
  * - 走路的（霜壳蟹、蓝钳、刺海胆）：walk
  * - 倒挂刺海胆：hang → shake（晃 24 帧）→ fall → walk（落地后不动）
  * - 冰喙鸥：cruise → alert（停下叫一声，30 帧）→ dive → climb → cruise
+ * - 崖燕：wait（不显示，等整组出发）→ fly（直线横飞，飞出画面又回到 wait）
  */
-export type EnemyMode = 'walk' | 'hang' | 'shake' | 'fall' | 'cruise' | 'alert' | 'dive' | 'climb';
+export type EnemyMode =
+  'walk' | 'hang' | 'shake' | 'fall' | 'cruise' | 'alert' | 'dive' | 'climb' | 'wait' | 'fly';
 
 /** 这一步里值得表现层知道的变化 */
 export type EnemyCue = 'shake' | 'fall' | 'land' | 'alert' | 'dive' | null;
@@ -90,7 +100,7 @@ export class Enemy {
     this.spawnY =
       kind === 'urchinHang'
         ? row * TILE
-        : kind === 'gull'
+        : spec.flying
           ? row * TILE + Math.floor((TILE - spec.h) / 2)
           : row * TILE + TILE - spec.h;
     this.body = new Body(this.spawnX, this.spawnY, spec.w, spec.h);
@@ -100,7 +110,26 @@ export class Enemy {
   }
 
   private initialMode(): EnemyMode {
-    return this.kind === 'urchinHang' ? 'hang' : this.kind === 'gull' ? 'cruise' : 'walk';
+    switch (this.kind) {
+      case 'urchinHang':
+        return 'hang';
+      case 'gull':
+        return 'cruise';
+      case 'swallow':
+        return 'wait';
+      default:
+        return 'walk';
+    }
+  }
+
+  /** 崖燕从 (x, y)（碰撞盒左上角）出发，朝 dir 直线横飞 */
+  launch(x: number, y: number, dir: 1 | -1): void {
+    this.body.place(Math.round(x), Math.round(y));
+    this.facing = dir;
+    this.vx = dir * this.spec.speed;
+    this.vy = 0;
+    this.active = true;
+    this.setMode('fly');
   }
 
   get spec(): EnemySpec {
@@ -168,6 +197,11 @@ export class Enemy {
       case 'climb':
         this.stepGull(grid, ctx);
         return null;
+      case 'wait':
+        return null;
+      case 'fly':
+        this.stepSwallow(ctx);
+        return null;
       default:
         return this.stepWalk(grid);
     }
@@ -175,6 +209,21 @@ export class Enemy {
 
   /** 这一步的状态变化（表现层：晃动的沙沙声、预警的"！"……） */
   cue: EnemyCue = null;
+
+  /** 崖燕：不碰地形，直线横飞；飞出画面另一边就回到 wait（不算打倒，死了重来时整组还会再飞） */
+  private stepSwallow(ctx: EnemyContext): void {
+    const b = this.body;
+    b.rx += this.vx * DT;
+    const move = Math.round(b.rx);
+    b.x += move;
+    b.rx -= move;
+    this.walked += Math.abs(this.vx) * DT;
+    const gone = this.vx < 0 ? b.right < ctx.camX - 32 : b.x > ctx.camX + ctx.viewW + 32;
+    if (gone || this.modeFrames > 600) {
+      this.active = false;
+      this.setMode('wait');
+    }
+  }
 
   private stepHang(ctx: EnemyContext): void {
     const b = this.body;

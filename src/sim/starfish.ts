@@ -31,6 +31,8 @@ export class Starfish {
   readonly hitIds = new Set<number>();
   /** 这一次扔出已经打过的椰子树 */
   readonly treeIds = new Set<number>();
+  /** 这一次扔出已经碰过的机关（冰晶、回声铃） */
+  readonly propIds = new Set<string>();
   /** 挂在海星上一起回来的道具 */
   readonly carried: Item[] = [];
   /** 接住后的冷却帧数 */
@@ -64,6 +66,7 @@ export class Starfish {
     this.frames = 0;
     this.hitIds.clear();
     this.treeIds.clear();
+    this.propIds.clear();
   }
 
   /** 收回手里（接住、或者主角掉海 / 倒下复活时） */

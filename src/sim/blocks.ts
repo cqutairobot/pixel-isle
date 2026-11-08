@@ -82,7 +82,8 @@ export class BlockSet {
   /** 从下面顶 (col, row) 这一格；dir 不为 0 时是被海星从侧面打（±1 是海星飞行的方向） */
   hit(col: number, row: number, dir = 0): BlockHitResult | null {
     const b = this.at(col, row);
-    if (!b || b.broken) return null;
+    // 裂岩顶不动、海星也打不动，只有咩铃冲撞撞得碎（breakRock）
+    if (!b || b.broken || b.kind === 'rock') return null;
     if (b.used) return { block: b, item: null, broke: false, empty: true, bumped: false };
     if (b.kind === 'brick') {
       b.broken = true;
@@ -104,6 +105,36 @@ export class BlockSet {
     }
     b.used = true;
     return { block: b, item: b.item, broke: false, empty: false, bumped: true };
+  }
+
+  /**
+   * 撞碎 (col, row) 所在的那一整块裂岩（上下左右相连的裂岩算同一块）。
+   * 返回碎掉的格子；这一格不是裂岩时返回空数组。
+   */
+  breakRock(col: number, row: number): Array<[number, number]> {
+    const first = this.at(col, row);
+    if (!first || first.kind !== 'rock' || first.broken) return [];
+    const out: Array<[number, number]> = [];
+    const queue = [first];
+    first.broken = true;
+    while (queue.length) {
+      const b = queue.pop()!;
+      out.push([b.col, b.row]);
+      this.grid.set(b.col, b.row, T_EMPTY);
+      for (const [dc, dr] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        const n = this.at(b.col + dc, b.row + dr);
+        if (n && n.kind === 'rock' && !n.broken) {
+          n.broken = true;
+          queue.push(n);
+        }
+      }
+    }
+    return out.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   }
 
   /** 方块网格是否仍是隐藏状态（关卡校验用） */

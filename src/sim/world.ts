@@ -4,6 +4,7 @@ import { SimCamera } from './camera';
 import { Chimes } from './chimes';
 import { TILE } from './constants';
 import { Enemy, type EnemyContext } from './enemies';
+import { T_EMPTY } from './grid';
 import type { RespawnCause, SimEvent, DefeatCause } from './events';
 import { BTN, EMPTY_INPUT, isPressed, type InputFrame } from './input';
 import { ItemSet, type Item } from './items';
@@ -35,6 +36,46 @@ export interface Npc {
   x: number;
   y: number;
   facing: 1 | -1;
+  /** 现在不在场（剧情标记决定，见 EntityDef 的 if / unless） */
+  hidden: boolean;
+  if?: string;
+  unless?: string;
+}
+
+/** 回声石门（第 3 关）：剧情标记 echo 出现时打开（格子变空） */
+export interface Gate {
+  cells: Array<[number, number]>;
+  /** 门占的左右范围（px） */
+  x0: number;
+  x1: number;
+  open: boolean;
+}
+
+/** 羊圈顶上的冰晶：从上面踩 hp 下才碎 */
+export interface Crystal {
+  rect: Rect;
+  hp: number;
+}
+
+/** 回声铃：rect 是铃和铃架（海星打得到），x、y 是铃架脚底中心 */
+export interface EchoBell {
+  rect: Rect;
+  x: number;
+  y: number;
+}
+
+/** 一组崖燕：wait → warn（画面边上警示）→ go（一只一只出发）→ done */
+export interface Flock {
+  id: number;
+  rect: Rect;
+  /** 这一组崖燕（世界 enemies 里的编号），按出发顺序 */
+  ids: number[];
+  /** 每只飞的高度（崖燕碰撞盒的顶边，px） */
+  ys: number[];
+  from: 1 | -1;
+  state: 'wait' | 'warn' | 'go' | 'done';
+  /** 进入当前状态以后的帧数 */
+  t: number;
 }
 
 export interface Trigger {
@@ -105,6 +146,14 @@ export class World implements PlayerEnv {
   readonly pens: Array<{ x: number; y: number }> = [];
   /** 小满站在咩铃旁边、可以按 ↑ 骑上（表现层据此显示"↑"） */
   mountTarget = false;
+  /** 回声石门、羊圈顶上的冰晶、回声铃、崖燕、纵向镜头区域（第 3 关） */
+  readonly gates: Gate[] = [];
+  crystal: Crystal | null = null;
+  readonly bell: EchoBell | null = null;
+  /** 小满站在回声铃旁边、可以按 ↑ 敲响 */
+  bellTarget = false;
+  readonly flocks: Flock[] = [];
+  readonly cameraZones: Rect[] = [];
   /** 这次冲刺连续撞飞了几只 */
   private chargeCombo = 0;
   /** 骑着咩铃时交给主角控制器的环境：骑乘手感、冲刺撞碎东西 */
@@ -197,6 +246,7 @@ export class World implements PlayerEnv {
     const nextGlass = (c: number, r: number) => glassAt.get(`${c},${r}`) ?? autoGlass++;
     let enemyId = 1;
     const cps: Array<{ col: number; row: number }> = [];
+    const gateCells: Array<[number, number]> = [];
     for (const m of level.markers) {
       const kind = String(m.data?.kind ?? '');
       switch (m.kind) {
@@ -221,6 +271,9 @@ export class World implements PlayerEnv {
         case 'checkpoint':
           cps.push({ col: m.col, row: m.row });
           break;
+        case 'gate':
+          gateCells.push([m.col, m.row]);
+          break;
         case 'goal':
           (this as { goal: Rect | null }).goal = {
             x: m.col * TILE + TILE / 2 - 4,
@@ -235,6 +288,7 @@ export class World implements PlayerEnv {
     cps.forEach((c, i) =>
       this.checkpoints.push({ index: i + 1, col: c.col, row: c.row, active: false }),
     );
+    this.buildGates(gateCells);
     for (const e of level.entities) {
       if (e.type === 'npc') {
         this.npcs.push({
@@ -242,6 +296,9 @@ export class World implements PlayerEnv {
           x: e.at[0] * TILE + TILE / 2,
           y: e.at[1] * TILE + TILE,
           facing: e.facing ?? -1,
+          hidden: false,
+          if: e.if,
+          unless: e.unless,
         });
       } else if (e.type === 'trigger') {
         const [c, r, w, h] = e.rect;
@@ -263,6 +320,86 @@ export class World implements PlayerEnv {
         (this as { goat: Goat | null }).goat = new Goat(f.x, f.y, e.facing ?? 1, mode);
       } else if (e.type === 'pen') {
         this.pens.push(feetAt(e.at[0], e.at[1]));
+      } else if (e.type === 'crystal') {
+        // 已经救出咩铃（再玩这一关）：羊圈上没有冰晶
+        if (!this.flags.has('mieling'))
+          this.crystal = {
+            rect: { x: e.at[0] * TILE, y: e.at[1] * TILE, w: TILE, h: TILE },
+            hp: e.hits ?? RULES.crystalHits,
+          };
+      } else if (e.type === 'echoBell') {
+        const f = feetAt(e.at[0], e.at[1]);
+        (this as { bell: EchoBell | null }).bell = {
+          x: f.x,
+          y: f.y,
+          rect: { x: f.x - 10, y: f.y - 2 * TILE, w: 20, h: 2 * TILE },
+        };
+      } else if (e.type === 'swallows') {
+        const [c, r, w, h] = e.rect;
+        const ids: number[] = [];
+        const ys: number[] = [];
+        for (const row of e.rows) {
+          const en = new Enemy(enemyId++, 'swallow', c, row);
+          this.enemies.push(en);
+          ids.push(en.id);
+          ys.push(en.body.y);
+        }
+        this.flocks.push({
+          id: this.flocks.length,
+          rect: { x: c * TILE, y: r * TILE, w: w * TILE, h: h * TILE },
+          ids,
+          ys,
+          from: e.from ?? 1,
+          state: 'wait',
+          t: 0,
+        });
+      } else if (e.type === 'cameraZone') {
+        const [c, r, w, h] = e.rect;
+        this.cameraZones.push({ x: c * TILE, y: r * TILE, w: w * TILE, h: h * TILE });
+      }
+    }
+    this.refresh();
+  }
+
+  /** 把石门的格子按上下左右相连分成一扇一扇 */
+  private buildGates(cells: Array<[number, number]>): void {
+    const left = new Set(cells.map(([c, r]) => `${c},${r}`));
+    for (const [c0, r0] of cells) {
+      if (!left.has(`${c0},${r0}`)) continue;
+      const gate: Gate = { cells: [], x0: Infinity, x1: -Infinity, open: false };
+      const queue: Array<[number, number]> = [[c0, r0]];
+      left.delete(`${c0},${r0}`);
+      while (queue.length) {
+        const [c, r] = queue.pop()!;
+        gate.cells.push([c, r]);
+        gate.x0 = Math.min(gate.x0, c * TILE);
+        gate.x1 = Math.max(gate.x1, (c + 1) * TILE);
+        for (const [dc, dr] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ] as const) {
+          const k = `${c + dc},${r + dr}`;
+          if (!left.has(k)) continue;
+          left.delete(k);
+          queue.push([c + dc, r + dr]);
+        }
+      }
+      this.gates.push(gate);
+    }
+  }
+
+  /** 剧情标记变了以后：NPC 在不在场、石门开没开 */
+  private refresh(): void {
+    for (const n of this.npcs)
+      n.hidden = (!!n.if && !this.flags.has(n.if)) || (!!n.unless && this.flags.has(n.unless));
+    if (this.flags.has('echo')) {
+      for (const g of this.gates) {
+        if (g.open) continue;
+        g.open = true;
+        for (const [c, r] of g.cells) this.grid.set(c, r, T_EMPTY);
+        this.emit({ type: 'gateOpen', cells: g.cells });
       }
     }
   }
@@ -345,6 +482,7 @@ export class World implements PlayerEnv {
       g.lock = 0;
       g.offscreen = 0;
     }
+    this.refresh();
   }
 
   step(input: InputFrame): void {
@@ -395,6 +533,7 @@ export class World implements PlayerEnv {
     }
     if (!p.ride && isPressed(ctrl, BTN.down)) this.tryPet();
     this.stepGoat();
+    if (this.pendingTrigger) return;
     if (p.headHit) this.hitBlockAbove();
     this.blocks.step();
     for (const lost of this.items.step()) {
@@ -412,6 +551,7 @@ export class World implements PlayerEnv {
     this.stepEnemies();
     this.stepStarfish();
     this.stepProps();
+    this.checkCrystal(input);
     this.resolveCombat(input);
     if (this.state !== 'play') return;
     this.checkHazards();
@@ -419,10 +559,19 @@ export class World implements PlayerEnv {
     this.updateCheckpoints();
     this.updateChimes();
     this.updateTriggers();
+    this.updateFlocks();
     this.updateGoal();
     this.tickTimers();
     if (p.onGround) this.combo = 0;
-    this.camera.step(p, this.tuning, { lookAhead: p.ride ? RULES.rideLookAhead : undefined });
+    const pb = p.body;
+    const vertical = this.cameraZones.some(
+      (z) =>
+        pb.centerX >= z.x && pb.centerX < z.x + z.w && pb.centerY >= z.y && pb.centerY < z.y + z.h,
+    );
+    this.camera.step(p, this.tuning, {
+      lookAhead: p.ride ? RULES.rideLookAhead : undefined,
+      vertical,
+    });
   }
 
   private stepDying(): void {
@@ -449,6 +598,7 @@ export class World implements PlayerEnv {
     let bestD = Infinity;
     if (p.onGround && this.stun === 0) {
       for (const n of this.npcs) {
+        if (n.hidden) continue;
         const d = Math.abs(n.x - b.centerX);
         if (d <= TALK_RANGE && Math.abs(n.y - b.bottom) <= 8 && d < bestD) {
           best = n;
@@ -469,11 +619,112 @@ export class World implements PlayerEnv {
       this.stun === 0 &&
       Math.abs(g.body.centerX - b.centerX) <= RULES.mountRange &&
       Math.abs(g.body.bottom - b.bottom) <= 6;
+    // 站在回声铃旁边（徒步）：按 ↑ 敲响
+    const bell = this.bell;
+    this.bellTarget =
+      !best &&
+      !this.mountTarget &&
+      !p.ride &&
+      !!bell &&
+      p.onGround &&
+      this.stun === 0 &&
+      Math.abs(bell.x - b.centerX) <= 16 &&
+      Math.abs(bell.y - b.bottom) <= 6;
     if (best && isPressed(input, BTN.up)) {
       this.pendingTalk = best.id;
       this.emit({ type: 'talk', id: best.id });
     } else if (this.mountTarget && isPressed(input, BTN.up)) {
       this.mount('up');
+    } else if (this.bellTarget && isPressed(input, BTN.up)) {
+      this.ringBell();
+    }
+  }
+
+  /** 敲响回声铃：第一次触发过场"回声"（石门打开）；石门开了以后再敲只是响 */
+  private ringBell(): void {
+    const bell = this.bell;
+    if (!bell || this.pendingTrigger) return;
+    this.emit({ type: 'echoRing', x: bell.x, y: bell.rect.y });
+    if (this.flags.has('echo')) return;
+    this.pendingTrigger = 'echo';
+    this.emit({ type: 'trigger', id: 'echo', blocking: true });
+  }
+
+  /** 从上面踩羊圈顶上的冰晶：像踩敌人一样弹起来；踩够了冰晶碎掉，触发"咩铃出圈" */
+  private checkCrystal(input: InputFrame): void {
+    const cr = this.crystal;
+    const p = this.player;
+    if (!cr || p.vy <= 0) return;
+    const pb = p.body;
+    const r = cr.rect;
+    if (pb.right <= r.x - 2 || pb.x >= r.x + r.w + 2) return;
+    if (p.prevBottom > r.y + 6 || pb.bottom < r.y) return;
+    // 脚陷进冰晶里时先放回冰晶顶上
+    const lift = pb.bottom - r.y;
+    if (lift > 0 && !this.grid.solidAt(pb.x, pb.y - lift, pb.w, pb.h)) {
+      pb.y -= lift;
+      pb.ry = 0;
+    }
+    const held = (input.held & BTN.jump) !== 0;
+    p.bounce(held ? RULES.stompBounceHeld : RULES.stompBounce, held);
+    this.hitstop = Math.max(this.hitstop, RULES.stompHitstop);
+    cr.hp--;
+    const x = r.x + r.w / 2;
+    const y = r.y + r.h / 2;
+    if (cr.hp > 0) {
+      this.emit({ type: 'crystalHit', stage: RULES.crystalHits - cr.hp, x, y });
+      return;
+    }
+    this.crystal = null;
+    this.emit({ type: 'crystalBreak', x, y });
+    this.pendingTrigger = 'rescue';
+    this.emit({ type: 'trigger', id: 'rescue', blocking: true });
+  }
+
+  /** 崖燕：小满走进触发区就警示，警示完一只一只从画面边上出发 */
+  private updateFlocks(): void {
+    const pb = this.player.body;
+    const cam = this.camera;
+    for (const f of this.flocks) {
+      f.t++;
+      if (f.state === 'wait') {
+        const r = f.rect;
+        if (
+          pb.centerX < r.x ||
+          pb.centerX >= r.x + r.w ||
+          pb.centerY < r.y ||
+          pb.centerY >= r.y + r.h
+        )
+          continue;
+        f.state = 'warn';
+        f.t = 0;
+        this.emit({
+          type: 'swallowWarn',
+          flock: f.id,
+          from: f.from,
+          ys: f.ys.map((y) => y + 4),
+          frames: RULES.swallowWarnFrames,
+        });
+      } else if (f.state === 'warn' && f.t >= RULES.swallowWarnFrames) {
+        f.state = 'go';
+        f.t = 0;
+      }
+      if (f.state !== 'go') continue;
+      f.ids.forEach((id, i) => {
+        if (f.t !== i * RULES.swallowGap) return;
+        const e = this.enemies.find((q) => q.id === id)!;
+        if (!e.alive) return;
+        const x = f.from > 0 ? cam.x + cam.viewW + 4 : cam.x - e.body.w - 4;
+        e.launch(x, f.ys[i]!, f.from > 0 ? -1 : 1);
+        this.emit({
+          type: 'enemyActivate',
+          id: e.id,
+          kind: e.kind,
+          x: e.body.centerX,
+          y: e.body.bottom,
+        });
+      });
+      if (f.t >= (f.ids.length - 1) * RULES.swallowGap) f.state = 'done';
     }
   }
 
@@ -589,7 +840,7 @@ export class World implements PlayerEnv {
   }
 
   /**
-   * 冲刺撞上实心格子时由主角控制器调用：矩形里能撞碎的（沙岩砖）都撞碎。
+   * 冲刺撞上实心格子时由主角控制器调用：矩形里能撞碎的（裂岩整块、沙岩砖）都撞碎。
    * 撞碎了东西返回 true，主角接着往前走。
    */
   private smashAt(x: number, y: number, w: number, h: number): boolean {
@@ -602,7 +853,26 @@ export class World implements PlayerEnv {
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
         const blk = this.blocks.at(c, r);
-        if (!blk || blk.broken || blk.kind !== 'brick') continue;
+        if (!blk || blk.broken) continue;
+        if (blk.kind === 'rock') {
+          const cells = this.blocks.breakRock(c, r);
+          let sx = 0;
+          let sy = 0;
+          for (const [cc, rr] of cells) {
+            sx += cc;
+            sy += rr;
+          }
+          this.emit({
+            type: 'rockBreak',
+            cells,
+            x: (sx / cells.length) * TILE + TILE / 2,
+            y: (sy / cells.length) * TILE + TILE / 2,
+          });
+          this.hitstop = Math.max(this.hitstop, RULES.chargeHitstop + 1);
+          broke = true;
+          continue;
+        }
+        if (blk.kind !== 'brick') continue;
         this.hitBlockAt(c, r, dir);
         broke = true;
       }
@@ -672,9 +942,11 @@ export class World implements PlayerEnv {
     this.emit({ type: 'goatReturn', x: spot.x, y: spot.y, fromX, fromY });
   }
 
-  /** 咩铃过不去：在 a 和 b 之间有关着的石门（第 3 关）；现在还没有石门 */
-  private goatBlocked(_a: number, _b: number): boolean {
-    return false;
+  /** 咩铃过不去：在 a 和 b（x，px）之间有一扇关着的石门 */
+  private goatBlocked(a: number, b: number): boolean {
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    return this.gates.some((g) => !g.open && g.x1 > lo && g.x0 < hi);
   }
 
   /** 咩铃蹦回来时的落脚点：小满身后（再试身前）1–4 格，能站、头顶有骑乘的空间、在画面里 */
@@ -909,6 +1181,20 @@ export class World implements PlayerEnv {
     }
     // 捞道具：挂在海星上一起回来
     for (const it of this.items.touching(r)) this.grab(it);
+    // 羊圈顶上的冰晶太硬："叮"地弹开；回声铃：敲响
+    const cr = this.crystal;
+    if (cr && s.state === 'out' && rectsOverlap(r.x, r.y, r.w, r.h, cr.rect)) {
+      s.state = 'back';
+      if (!s.propIds.has('crystal')) {
+        s.propIds.add('crystal');
+        this.emit({ type: 'crystalClink', x: b.centerX, y: b.centerY });
+      }
+    }
+    const bell = this.bell;
+    if (bell && !s.propIds.has('bell') && rectsOverlap(r.x, r.y, r.w, r.h, bell.rect)) {
+      s.propIds.add('bell');
+      this.ringBell();
+    }
     // 打椰子树的树冠：掉一个椰子
     for (const t of this.props.trees) {
       if (s.treeIds.has(t.id) || !rectsOverlap(r.x, r.y, r.w, r.h, t.crown)) continue;
@@ -1038,6 +1324,8 @@ export class World implements PlayerEnv {
     };
     for (const e of this.enemies) {
       if (!e.alive) continue;
+      // 崖燕等整组出发（updateFlocks），不按"进入镜头"激活
+      if (!e.active && e.kind === 'swallow') continue;
       if (!e.active) {
         const b = e.body;
         if (
@@ -1255,6 +1543,11 @@ export class World implements PlayerEnv {
     this.grace = 0;
     this.combo = 0;
     for (const e of this.enemies) if (e.alive) e.reset();
+    // 崖燕组重新待命（被打倒的那几只不再出现）
+    for (const f of this.flocks) {
+      f.state = 'wait';
+      f.t = 0;
+    }
     this.state = 'play';
     this.settle();
     this.camera.snap(p);

@@ -14,6 +14,10 @@ export const MAT_GROVE = 6;
 export const MAT_LEAF = 7;
 export const MAT_BARK = 8;
 export const MAT_VINE = 9;
+/** 回声崖（第 3 关）：崖石（实心）、栈道（单向木板）、云海（掉进去按掉坑处理） */
+export const MAT_CLIFF = 10;
+export const MAT_BOARDWALK = 11;
+export const MAT_CLOUD = 12;
 
 /** 图例里一个字符的含义：瓦片类型、材质，以及（可选）放在这一格的标记 */
 export interface LegendEntry {
@@ -24,12 +28,14 @@ export interface LegendEntry {
 }
 
 export type ItemKind = 'shell' | 'bigShell' | 'mango' | 'sun' | 'glass';
-export type BlockKind = 'bell' | 'multi' | 'hidden' | 'brick';
-export type EnemyKind = 'crab' | 'blueClaw' | 'urchin' | 'urchinHang' | 'gull';
+/** rock：裂岩（第 3 关），只有咩铃冲撞撞得碎，连在一起的一整块一起碎 */
+export type BlockKind = 'bell' | 'multi' | 'hidden' | 'brick' | 'rock';
+export type EnemyKind = 'crab' | 'blueClaw' | 'urchin' | 'urchinHang' | 'gull' | 'swallow';
 
 /** 关卡实体：不方便画进网格、带参数的东西。坐标单位是格。 */
 export type EntityDef =
-  | { type: 'npc'; id: string; at: [number, number]; facing?: 1 | -1 }
+  /** NPC；if：有这个剧情标记时才出现，unless：有这个剧情标记时就不在了 */
+  | { type: 'npc'; id: string; at: [number, number]; facing?: 1 | -1; if?: string; unless?: string }
   | { type: 'deco'; kind: string; at: [number, number]; flip?: boolean; front?: boolean }
   /**
    * 触发区：blocking 为 true 时世界会停下等过场或对话结束。
@@ -54,7 +60,18 @@ export type EntityDef =
    */
   | { type: 'goat'; at: [number, number]; facing?: 1 | -1 }
   /** 羊圈：死了以后咩铃在离复活点最近的羊圈里等。at 同上 */
-  | { type: 'pen'; at: [number, number] };
+  | { type: 'pen'; at: [number, number] }
+  /** 羊圈顶上的冰晶（第 3 关开场）：at 是冰晶占的那一格；从上面踩 hits 下才碎，碎了触发 rescue */
+  | { type: 'crystal'; at: [number, number]; hits?: number }
+  /** 回声铃（第 3 关）：at 是铃架脚下那一格的上面一格；敲响（↑ 或海星）触发 echo，石门跟着打开 */
+  | { type: 'echoBell'; at: [number, number] }
+  /**
+   * 一组崖燕：小满走进 rect（格）时，先在画面边上警示，然后一只一只从 from 那一侧
+   * （1 = 右边，往左飞；-1 = 左边，往右飞）横着掠过，每只飞在 rows 里对应的那一行
+   */
+  | { type: 'swallows'; rect: [number, number, number, number]; rows: number[]; from?: 1 | -1 }
+  /** 纵向镜头区域（格）：小满在里面时，镜头不等落地，连续跟着高度 */
+  | { type: 'cameraZone'; rect: [number, number, number, number] };
 
 export interface LevelDef {
   id: string;
@@ -128,6 +145,10 @@ export const BASE_LEGEND: Record<string, LegendEntry> = {
   w: { tile: T_EMPTY, marker: 'enemy', data: { kind: 'gull' } },
   C: { tile: T_EMPTY, marker: 'checkpoint' },
   G: { tile: T_EMPTY, marker: 'goal' },
+  // 第 3 关：崖石、裂岩、回声石门（门由表现层单独画，所以不进瓦片图）
+  '^': { tile: T_SOLID, material: MAT_CLIFF },
+  R: { tile: T_SOLID, marker: 'block', data: { kind: 'rock', item: '' } },
+  D: { tile: T_SOLID, material: MAT_NONE, marker: 'gate' },
 };
 for (let i = 0; i <= 9; i++)
   BASE_LEGEND[String(i)] = { tile: T_EMPTY, marker: 'sign', data: { value: i } };
