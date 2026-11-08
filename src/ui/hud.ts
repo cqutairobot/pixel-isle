@@ -50,6 +50,9 @@ export class Hud {
   private equipSpring = new Spring(1, 700, 14);
   private equipTilt = new Spring(0, 520, 9);
   private equipOut = false;
+  /** 有装备、正骑着咩铃（骑着时装备格换成咩铃的头像） */
+  private hasEquip = false;
+  private mounted = false;
 
   constructor(private scene: Phaser.Scene) {
     this.root = scene.add.container(0, 0).setDepth(10);
@@ -86,10 +89,25 @@ export class Hud {
   /** 有没有装备（拿到海星时 pop 出来） */
   setEquip(on: boolean, pop = false): void {
     const was = this.equipSlot.visible;
-    this.equipSlot.setVisible(on);
-    this.equipIcon.setVisible(on);
+    this.hasEquip = on;
+    this.applySlot();
     if (on && !was && pop) this.equipSpring.set(0, 9);
     if (!on) this.setEquipOut(false);
+  }
+
+  /** 骑上 / 下来：装备格换成咩铃的头像（攻击键是冲撞），弹一下 */
+  setMount(on: boolean): void {
+    if (on === this.mounted) return;
+    this.mounted = on;
+    this.applySlot();
+    this.equipSpring.set(on ? 0.4 : 0.6, 9);
+    if (!on) this.setEquipOut(false);
+  }
+
+  private applySlot(): void {
+    const show = this.hasEquip || this.mounted;
+    this.equipSlot.setVisible(show);
+    this.equipIcon.setVisible(show).setFrame(this.mounted ? 'goat/head' : 'equip/star_0');
   }
 
   /** 海星飞出去了：图标变暗 */

@@ -513,7 +513,83 @@ const daishu: Character = {
   },
 };
 
+// —— 谷雨：放羊娃，乱蓬蓬的棕发翘着一撮呆毛，圆脸，绿色短褂、草绳领子；哭的时候挂着两道泪 ——
+const guyu: Character = {
+  face: { eyeL: [12, 17], eyeR: [18, 17], mouth: [16, 22], brow: 'bark' },
+  outline: 'night',
+  back(p) {
+    p.ellipse(16, 34, 12, 8, 'leaf2');
+    p.recolorWhere((x, y, c) => c === 'leaf2' && x >= 21 && y >= 27, 'leaf1');
+    p.line(11, 27, 16, 29, 'sand2').line(21, 27, 16, 29, 'sand2');
+    neck(p, 'skin1');
+    p.rect(14, 23, 4, 3, 'skin1');
+    p.ellipse(16.2, 18.2, 7.6, 7, 'skin2');
+    p.recolorWhere((x, y, c) => c === 'skin2' && y >= 23 && x <= 12, 'skin1');
+  },
+  front(p, _talk, e) {
+    // 乱蓬蓬的头发：一缕一缕翘起来，头顶一撮呆毛
+    p.ellipse(16, 11.5, 8.8, 5.6, 'bark');
+    for (const [x, top] of [
+      [8, 10],
+      [10, 7],
+      [21, 7],
+      [24, 10],
+    ] as const)
+      p.vline(x, top, top + 4, 'bark');
+    p.set(17, 3, 'bark').set(18, 2, 'bark').set(19, 2, 'bark').set(17, 4, 'bark');
+    p.rect(9, 12, 15, 2, 'bark');
+    for (const x of [10, 12, 15, 18, 21]) p.set(x, 14, 'bark');
+    p.set(13, 8, 'ochre').set(14, 8, 'ochre').set(19, 9, 'ochre');
+    // 哭：两道眼泪
+    if (e.eyes === 'closed' && e.mouth === 'frown') {
+      p.vline(12, 19, 22, 'sky').vline(19, 19, 22, 'sky');
+      p.set(12, 23, 'white').set(19, 23, 'white');
+    }
+  },
+  exprs: {
+    normal: { eyes: 'open', mouth: 'smile', blush: true },
+    cry: { eyes: 'closed', mouth: 'frown', brows: 'sad' },
+    happy: { eyes: 'happy', mouth: 'open', blush: true },
+    pout: { eyes: 'narrow', mouth: 'frown', brows: 'angry', blush: true },
+  },
+};
+
+// —— 咩铃：白色的山羊脸，往后弯的角、耷拉的耳朵、粉鼻头，红项圈上挂着金铃 ——
+const mieling: Character = {
+  face: { eyeL: [11, 15], eyeR: [20, 15], mouth: [16, 24], brow: 'mist', lip: 'stone' },
+  outline: 'night',
+  back(p) {
+    // 项圈和铃
+    p.rect(9, 27, 15, 2, 'red1');
+    p.rect(15, 29, 3, 3, 'gold');
+    p.set(17, 30, 'ochre').set(16, 31, 'straw');
+    // 角：从头顶往两边后面弯
+    p.line(11, 9, 8, 5, 'sand2').line(10, 9, 7, 6, 'sand2').set(7, 4, 'sand1');
+    p.line(21, 9, 24, 5, 'sand2').line(22, 9, 25, 6, 'sand2').set(25, 4, 'sand1');
+    // 耷拉的耳朵
+    p.ellipse(6, 14, 3.4, 2, 'cloud');
+    p.ellipse(26, 14, 3.4, 2, 'cloud');
+    p.hline(5, 7, 14, 'blush').hline(25, 27, 14, 'blush');
+    // 长长的脸，嘴巴一圈浅色
+    p.ellipse(16, 16, 7.6, 9, 'white');
+    p.ellipse(16, 23, 5.2, 3.6, 'cloud');
+    p.recolorWhere((x, y, c) => c === 'white' && x >= 21 && y >= 18, 'cloud');
+    // 粉鼻头
+    p.hline(14, 18, 21, 'blush');
+    p.set(14, 22, 'stone').set(18, 22, 'stone');
+    // 头顶的一撮毛
+    p.set(15, 7, 'cloud').set(16, 6, 'white').set(17, 7, 'cloud');
+  },
+  exprs: {
+    normal: { eyes: 'open', mouth: 'line' },
+    smug: { eyes: 'narrow', mouth: 'smirk', brows: 'raised' },
+    happy: { eyes: 'happy', mouth: 'smile', blush: true },
+  },
+};
+
 export const PORTRAITS: Record<string, Character> = {
+  guyu,
+  mieling,
   xiaoman,
   huihui,
   haishen,

@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { drawBoulder, drawGate } from '../art/cliff';
 import { GLASS_COLORS } from '../art/items';
 import { BUMP_FRAMES, type Block } from '../sim/blocks';
 import { CHIME_LAYOUT } from '../sim/chimes';
@@ -8,10 +9,10 @@ import type { SimEvent } from '../sim/events';
 import type { Item } from '../sim/items';
 import type { CoconutTree } from '../sim/props';
 import { RULES } from '../sim/tuning';
-import type { Npc, World } from '../sim/world';
+import type { Gate, Npc, World } from '../sim/world';
 import type { Particles } from './particles';
 import { Spring } from './spring';
-import { ATLAS } from './textures';
+import { addImageTexture, ATLAS } from './textures';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const BELL_SEQ = [0, 1, 0, 3, 0, 1, 0, 3, 2];
@@ -22,10 +23,13 @@ const NPC_FRAMES: Record<string, { idle: string[]; h: number }> = {
   adou: { idle: ['npc/adou_idle_0', 'npc/adou_idle_1'], h: 17 },
   bailu: { idle: ['npc/bailu_idle_0', 'npc/bailu_idle_1'], h: 22 },
   daishu: { idle: ['npc/daishu_idle_0', 'npc/daishu_idle_1'], h: 25 },
+  // 谷雨：开场在羊圈旁边，结尾在铃门旁边（同一个人，两个位置）
+  guyu: { idle: ['npc/guyu_idle_0', 'npc/guyu_idle_1'], h: 19 },
+  guyu_gate: { idle: ['npc/guyu_idle_0', 'npc/guyu_idle_1'], h: 19 },
 };
 
 interface Freed {
-  kind: 'crab' | 'urchin' | 'gull';
+  kind: 'crab' | 'urchin' | 'gull' | 'swallow';
   img: Phaser.GameObjects.Image;
   x: number;
   y: number;
@@ -78,6 +82,18 @@ export class EntityViews {
   storyMode = false;
   /** 过场里小满由导演摆布时的位置（脚底中心）；null 用 sim 里的位置 */
   heroAt: { x: number; y: number; facing: 1 | -1 } | null = null;
+  /** 序章里藏起来的全部 NPC、过场里换成演出精灵的 NPC（每帧按它们和剧情标记决定显示） */
+  private allNpcsHidden = false;
+  private storyHidden = new Set<string>();
+  /** 第 3 关：裂岩（一整块一张图）、羊圈顶上的冰晶、回声铃、石门 */
+  private rocks: Array<{ blocks: Block[]; img: Phaser.GameObjects.Image }> = [];
+  private crystalImg: Phaser.GameObjects.Image | null = null;
+  private crystalShake = 0;
+  private bellImg: Phaser.GameObjects.Image | null = null;
+  private bellSwing = 0;
+  private gates: Array<{ gate: Gate; img: Phaser.GameObjects.Image; y0: number; t: number }> = [];
+  /** 回声扫过：隐藏铃砖闪出轮廓的剩余时间 */
+  private revealT = 0;
 
   constructor(
     private scene: Phaser.Scene,
@@ -85,6 +101,7 @@ export class EntityViews {
     private particles: Particles,
   ) {
     for (const b of world.blocks.list) {
+      if (b.kind === 'rock') continue;
       this.blocks.set(
         b,
         scene.add
@@ -93,6 +110,7 @@ export class EntityViews {
           .setDepth(2),
       );
     }
+    this.buildCliffProps();
     for (const e of world.enemies) {
       this.enemies.set(
         e.id,
@@ -155,6 +173,94 @@ export class EntityViews {
     this.huihui = scene.add.image(0, 0, ATLAS, 'npc/huihui_idle_0').setDepth(12).setVisible(false);
   }
 
+  /** 第 3 关的裂岩、冰晶、回声铃、石门 */
+  private buildCliffProps(): void {
+    const scene = this.scene;
+    const w = this.world;
+    // 裂岩：上下左右相连的算一整块，按外接矩形画一块大石头
+    const rocks = w.blocks.list.filter((b) => b.kind === 'rock');
+    const at = new Map(rocks.map((b) => [`${b.col},${b.row}`, b]));
+    const seen = new Set<Block>();
+    for (const b0 of rocks) {
+      if (seen.has(b0)) continue;
+      const group: Block[] = [];
+      const queue = [b0];
+      seen.add(b0);
+      while (queue.length) {
+        const b = queue.pop()!;
+        group.push(b);
+        for (const [dc, dr] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ] as const) {
+          const n = at.get(`${b.col + dc},${b.row + dr}`);
+          if (n && !seen.has(n)) {
+            seen.add(n);
+            queue.push(n);
+          }
+        }
+      }
+      const c0 = Math.min(...group.map((b) => b.col));
+      const c1 = Math.max(...group.map((b) => b.col));
+      const r0 = Math.min(...group.map((b) => b.row));
+      const r1 = Math.max(...group.map((b) => b.row));
+      const key = `rock-${c1 - c0 + 1}x${r1 - r0 + 1}-${(c0 * 7 + r0) % 5}`;
+      if (!scene.textures.exists(key))
+        addImageTexture(scene, key, drawBoulder(c1 - c0 + 1, r1 - r0 + 1, (c0 * 7 + r0) % 5));
+      const img = scene.add
+        .image(c0 * TILE, r0 * TILE, key)
+        .setOrigin(0, 0)
+        .setDepth(2);
+      this.rocks.push({ blocks: group, img });
+    }
+    if (w.crystal) {
+      const r = w.crystal.rect;
+      this.crystalImg = scene.add
+        .image(r.x + r.w / 2, r.y + r.h, ATLAS, 'cliff/crystal_0')
+        .setOrigin(0.5, 1)
+        .setDepth(3);
+    }
+    if (w.bell) {
+      this.bellImg = scene.add
+        .image(w.bell.x, w.bell.y, ATLAS, 'cliff/bell_0')
+        .setOrigin(0.5, 1)
+        .setDepth(-2);
+    }
+    // 石门：画在瓦片后面，开门时往上升进崖壁里
+    for (const gate of w.gates) {
+      const cols = gate.cells.map(([c]) => c);
+      const rows = gate.cells.map(([, r]) => r);
+      const c0 = Math.min(...cols);
+      const r0 = Math.min(...rows);
+      const nc = Math.max(...cols) - c0 + 1;
+      const nr = Math.max(...rows) - r0 + 1;
+      for (const frozen of [true, false]) {
+        const key = `gate-${nc}x${nr}${frozen ? '-ice' : ''}`;
+        if (!scene.textures.exists(key)) addImageTexture(scene, key, drawGate(nc, nr, frozen));
+      }
+      const img = scene.add
+        .image(c0 * TILE, r0 * TILE, `gate-${nc}x${nr}-ice`)
+        .setOrigin(0, 0)
+        .setDepth(-1)
+        .setVisible(!gate.open);
+      this.gates.push({ gate, img, y0: r0 * TILE, t: gate.open ? 1 : -1 });
+    }
+  }
+
+  /** 回声扫过洞里：隐藏铃砖闪出淡淡的轮廓（只是提示） */
+  echoReveal(): void {
+    this.revealT = 1.4;
+  }
+
+  /** 咩铃头顶（提示"↑"、表情气泡） */
+  get goatHead(): { x: number; y: number } | null {
+    const g = this.world.goat;
+    if (!g || g.mode === 'ridden') return null;
+    return { x: g.body.centerX + g.facing * 6, y: g.body.y - 6 };
+  }
+
   /** 回回在世界里的位置（提示气泡的锚点）；还没出现时返回 null */
   get huihuiPos(): { x: number; y: number } | null {
     return this.huiShown ? { x: this.hx, y: this.hy - 7 } : null;
@@ -168,12 +274,14 @@ export class EntityViews {
 
   /** 序章里白天的人都不在 */
   setNpcsVisible(on: boolean): void {
-    for (const img of this.npcs.values()) img.setVisible(on);
+    this.allNpcsHidden = !on;
+    if (on) this.storyHidden.clear();
   }
 
   /** 过场里某个 NPC 换成演出精灵时，先把关卡里的那个藏起来 */
   setNpcVisible(id: string, on: boolean): void {
-    this.npcs.get(id)?.setVisible(on);
+    if (on) this.storyHidden.delete(id);
+    else this.storyHidden.add(id);
   }
 
   /** 过场里的回回（演出精灵）换成这个：直接出现在 (x, y)，不再播放登场动画 */
@@ -197,6 +305,7 @@ export class EntityViews {
       return { x: b.centerX, y: b.y - 2 };
     }
     if (who === 'huihui') return this.huihuiPos;
+    if (who === 'mieling' || who === 'goat') return this.goatHead;
     return this.npcTop(who);
   }
 
@@ -244,18 +353,22 @@ export class EntityViews {
           const kind =
             en?.kind === 'gull'
               ? 'gull'
-              : en?.kind === 'urchin' || en?.kind === 'urchinHang'
-                ? 'urchin'
-                : 'crab';
+              : en?.kind === 'swallow'
+                ? 'swallow'
+                : en?.kind === 'urchin' || en?.kind === 'urchinHang'
+                  ? 'urchin'
+                  : 'crab';
           const dir = Math.sign(e.x - this.world.player.body.centerX) || 1;
           const first =
             kind === 'gull'
               ? 'enemy/gull_free_0'
-              : kind === 'urchin'
-                ? 'enemy/urchin_free_0'
-                : e.cause === 'stomp'
-                  ? 'enemy/crab_squash'
-                  : 'enemy/free_blink';
+              : kind === 'swallow'
+                ? 'enemy/swallow_free_0'
+                : kind === 'urchin'
+                  ? 'enemy/urchin_free_0'
+                  : e.cause === 'stomp'
+                    ? 'enemy/crab_squash'
+                    : 'enemy/free_blink';
           const f = this.scene.add
             .image(e.x, e.y, ATLAS, first)
             .setOrigin(0.5, 1)
@@ -266,12 +379,13 @@ export class EntityViews {
             img: f,
             x: e.x,
             y: e.y,
-            vx: 0,
-            vy: e.cause === 'bump' ? -200 : 0,
+            // 被咩铃冲撞撞飞：翻着跟头往前飞出去
+            vx: e.cause === 'charge' && kind !== 'gull' && kind !== 'swallow' ? dir * 140 : 0,
+            vy: e.cause === 'bump' ? -200 : e.cause === 'charge' ? -260 : 0,
             t: e.cause === 'stomp' ? 0 : 0.1,
             dir,
-            ground: kind === 'crab' ? e.y : this.groundBelow(e.x, e.y),
-            flipped: e.cause === 'bump',
+            ground: kind === 'crab' && e.cause !== 'charge' ? e.y : this.groundBelow(e.x, e.y),
+            flipped: e.cause === 'bump' || e.cause === 'charge',
           });
           if (this.huiShown) this.mood('happy', 0.6);
           break;
@@ -302,6 +416,16 @@ export class EntityViews {
         case 'chimeSolved':
           for (const s of this.chimeSprings) s.velocity += 2;
           break;
+        case 'crystalHit':
+          this.crystalShake = 0.25;
+          break;
+        case 'echoRing':
+          this.bellSwing = 1.6;
+          break;
+        case 'gateOpen':
+          for (const g of this.gates)
+            if (g.gate.cells === e.cells || g.gate.cells[0]?.[0] === e.cells[0]?.[0]) g.t = 0;
+          break;
         case 'clear':
           this.gateSwing = 2.2;
           if (this.huiShown) this.mood('happy', 3);
@@ -322,6 +446,7 @@ export class EntityViews {
       // 刺一张一缩，慢慢地"呼吸"
       return `enemy/urchin_${Math.floor(t * 2.5 + e.id * 0.37) % 2}`;
     }
+    if (e.kind === 'swallow') return `enemy/swallow_${[0, 1, 2, 1][Math.floor(t * 16 + e.id) % 4]}`;
     if (e.kind === 'gull') {
       if (e.mode === 'alert') return Math.floor(t * 14) % 2 ? 'enemy/gull_alert' : 'enemy/gull_0';
       if (e.mode === 'dive') return 'enemy/gull_dive';
@@ -357,7 +482,21 @@ export class EntityViews {
     const w = this.world;
     const p = w.player;
     // 方块
+    if (this.revealT > 0) this.revealT -= dt;
     for (const [b, img] of this.blocks) {
+      if (b.kind === 'hidden' && !b.revealed && this.revealT > 0) {
+        // 回声扫过：闪两下白色的轮廓
+        const k = 1.4 - this.revealT;
+        const a = Math.max(0, Math.sin((k / 1.4) * Math.PI * 2)) * 0.55;
+        img
+          .setVisible(a > 0.02)
+          .setFrame('block/bell_0')
+          .setTint(0xffffff)
+          .setTintMode(1)
+          .setAlpha(a);
+        continue;
+      }
+      img.setTintMode(0).clearTint().setAlpha(1);
       if (b.broken || (b.kind === 'hidden' && !b.revealed)) {
         img.setVisible(false);
         continue;
@@ -418,15 +557,16 @@ export class EntityViews {
         this.items.delete(id);
       }
     }
-    // 敌人
+    // 敌人（等着整组出发的崖燕不显示）
     for (const e of w.enemies) {
       const img = this.enemies.get(e.id)!;
-      img.setVisible(e.alive);
-      if (!e.alive) continue;
+      const waiting = e.kind === 'swallow' && e.mode === 'wait';
+      img.setVisible(e.alive && !waiting);
+      if (!e.alive || waiting) continue;
       const b = e.body;
       const x = lerp(b.px + b.w / 2, b.centerX, alpha);
       img.setFrame(this.enemyFrame(e, this.time)).setFlipX(e.facing < 0);
-      if (e.kind === 'gull') {
+      if (e.kind === 'gull' || e.kind === 'swallow') {
         img.setOrigin(0.5, 0.5).setPosition(x, lerp(b.py + b.h / 2, b.centerY, alpha));
       } else if (e.mode === 'hang' || e.mode === 'shake') {
         // 倒挂：顶上的刺扎进上面那一格；晃的时候左右抖 1 px
@@ -465,6 +605,7 @@ export class EntityViews {
         this.nuts.delete(id);
       }
     }
+    this.updateCliffProps(dt);
     this.updateFreed(dt);
     this.updateNpcs(dt);
     // 检查点
@@ -492,10 +633,50 @@ export class EntityViews {
     this.updateEmotes(dt);
   }
 
+  private updateCliffProps(dt: number): void {
+    for (const r of this.rocks) r.img.setVisible(!r.blocks[0]!.broken);
+    const cr = this.world.crystal;
+    if (this.crystalImg) {
+      if (!cr) this.crystalImg.setVisible(false);
+      else {
+        const stage = Math.min(2, RULES.crystalHits - cr.hp);
+        this.crystalImg.setFrame(`cliff/crystal_${stage}`);
+        if (this.crystalShake > 0) this.crystalShake -= dt;
+        const jx = this.crystalShake > 0 ? (Math.floor(this.time * 40) % 2 ? 1 : -1) : 0;
+        this.crystalImg.x = cr.rect.x + cr.rect.w / 2 + jx;
+      }
+    }
+    if (this.bellImg) {
+      if (this.bellSwing > 0) {
+        this.bellSwing -= dt;
+        const fps = 6 + this.bellSwing * 6;
+        const k = Math.floor(this.time * fps) % 4;
+        this.bellImg.setFrame(k === 1 ? 'cliff/bell_l' : k === 3 ? 'cliff/bell_r' : 'cliff/bell_0');
+      } else this.bellImg.setFrame('cliff/bell_0');
+    }
+    for (const g of this.gates) {
+      if (g.t < 0 || g.t >= 1) {
+        g.img.setVisible(!g.gate.open);
+        continue;
+      }
+      // 开门：冰先碎掉（换成没有冰的图），然后石门慢慢升进上面的崖壁里
+      g.t = Math.min(1, g.t + dt / 1.6);
+      const key = g.img.texture.key.replace('-ice', '');
+      if (g.img.texture.key !== key) g.img.setTexture(key);
+      const k = g.t < 0.2 ? 0 : (g.t - 0.2) / 0.8;
+      const ease = k * k * (3 - 2 * k);
+      g.img
+        .setVisible(true)
+        .setY(
+          Math.round(g.y0 - g.img.height * ease) + (g.t < 0.2 ? Math.floor(this.time * 30) % 2 : 0),
+        );
+    }
+  }
+
   private updateFreed(dt: number): void {
     this.freed = this.freed.filter((f) => {
       f.t += dt;
-      if (f.kind === 'gull') return this.updateFreedGull(f, dt);
+      if (f.kind === 'gull' || f.kind === 'swallow') return this.updateFreedGull(f, dt);
       if (f.kind === 'urchin') return this.updateFreedUrchin(f, dt);
       if (f.t < 0.12) return true;
       if (f.t < 0.4) {
@@ -504,6 +685,7 @@ export class EntityViews {
         if (f.flipped) {
           f.vy += 900 * dt;
           f.y = Math.min(f.ground, f.y + f.vy * dt);
+          f.x += f.vx * dt;
           f.img.setFlipY(f.vy < 0);
         }
         f.img.setPosition(f.x, f.y);
@@ -550,8 +732,9 @@ export class EntityViews {
     f.vy = Math.max(-90, f.vy - 160 * dt);
     f.x += f.vx * dt;
     f.y += f.vy * dt;
+    const pre = f.kind === 'swallow' ? 'enemy/swallow_free_' : 'enemy/gull_free_';
     f.img
-      .setFrame(Math.floor(f.t * 12) % 2 ? 'enemy/gull_free_1' : 'enemy/gull_free_0')
+      .setFrame(`${pre}${Math.floor(f.t * 12) % 2}`)
       .setOrigin(0.5, 0.5)
       .setFlipX(f.dir < 0)
       .setPosition(Math.round(f.x), Math.round(f.y - 6));
@@ -602,9 +785,15 @@ export class EntityViews {
     for (const n of this.world.npcs) {
       const img = this.npcs.get(n.id);
       if (!img) continue;
+      img.setVisible(!this.allNpcsHidden && !this.storyHidden.has(n.id) && !n.hidden);
       const near = Math.abs(p.body.centerX - n.x) < 72;
       if (near) img.setFlipX(p.body.centerX < n.x);
       let frame = NPC_FRAMES[n.id]!.idle[Math.floor(this.time * 1.6 + n.x) % 2]!;
+      // 谷雨：咩铃还冻着时蹲在羊圈前哭；铃门旁边的谷雨看到小满就挥手
+      if (n.id === 'guyu' && !this.world.flags.has('mieling'))
+        frame = `npc/guyu_cry_${Math.floor(this.time * 3) % 2}`;
+      else if (n.id === 'guyu_gate' && near)
+        frame = `npc/guyu_wave_${Math.floor(this.time * 4) % 2}`;
       // 海婶第一次看到小满会挥挥手；阿豆在风铃解开后欢呼
       if (n.id === 'haishen') {
         if (near && !this.waved.has(n.id)) {
@@ -628,11 +817,17 @@ export class EntityViews {
       img.setFrame(frame);
     }
     const t: Npc | null = this.storyMode ? null : this.world.talkTarget;
+    const hop = Math.round(Math.abs(Math.sin(this.time * 5)) * 3);
+    const w = this.world;
     if (t) {
       const h = NPC_FRAMES[t.id]?.h ?? 20;
-      this.prompt
-        .setVisible(true)
-        .setPosition(t.x, t.y - h - 3 - Math.round(Math.abs(Math.sin(this.time * 5)) * 3));
+      this.prompt.setVisible(true).setPosition(t.x, t.y - h - 3 - hop);
+    } else if (!this.storyMode && w.mountTarget && this.goatHead) {
+      // 站在咩铃旁边：按 ↑ 骑上
+      const g = w.goat!.body;
+      this.prompt.setVisible(true).setPosition(g.centerX, g.y - 8 - hop);
+    } else if (!this.storyMode && w.bellTarget && w.bell) {
+      this.prompt.setVisible(true).setPosition(w.bell.x, w.bell.rect.y - 4 - hop);
     } else this.prompt.setVisible(false);
   }
 

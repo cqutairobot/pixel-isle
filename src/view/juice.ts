@@ -2,6 +2,7 @@ import type { AudioEngine } from '../audio/engine';
 import { VIEW_W } from '../platform/display';
 import { TILE } from '../sim/constants';
 import type { SimEvent } from '../sim/events';
+import { MAT_CLOUD } from '../sim/level';
 import type { World } from '../sim/world';
 import { landImpact, type HeroView } from './heroView';
 import type { Particles } from './particles';
@@ -201,6 +202,25 @@ export class Juice {
           this.shake.add(0.35);
           break;
         case 'splash': {
+          const g = world.grid;
+          const cell = Math.floor((e.y + 2) / TILE) * g.cols + Math.floor(e.x / TILE);
+          if (world.level.material[cell] === MAT_CLOUD) {
+            // 掉进云海：噗地冒出一团云
+            this.sound.play('cloudPuff', { pan: this.pan(e.x), volume: e.big ? 1 : 0.5 });
+            for (let i = 0; i < (e.big ? 9 : 4); i++)
+              this.particles.spawn({
+                x: e.x + rnd(-8, 8),
+                y: e.y + rnd(-2, 4),
+                vx: rnd(-40, 40),
+                vy: rnd(-60, -20),
+                drag: 3,
+                life: rnd(0.5, 0.8),
+                frames: ['fx2/puff_2', 'fx2/puff_1', 'fx2/puff_0'],
+                fade: true,
+                depth: 31,
+              });
+            break;
+          }
           if (e.big) this.sound.play('splash', { pan: this.pan(e.x) });
           else this.sound.play('splash', { pan: this.pan(e.x), volume: 0.45, rate: 1.4 });
           const n = e.big ? 12 : 5;
@@ -522,6 +542,182 @@ export class Juice {
             });
           this.dust(e.x, e.y - 2, 0, -10, 'm', 0.35);
           break;
+        // —— 第 3 关：坐骑咩铃 ——
+        case 'mount':
+          this.sound.play('goatMount', { pan: this.pan(e.x) });
+          this.time(0.08, () => this.sound.play('goatBell', { pan: this.pan(e.x) }));
+          this.dust(e.x - 6, e.y - 1, -30, -8, 'm');
+          this.dust(e.x + 6, e.y - 1, 30, -8, 'm');
+          break;
+        case 'dismount':
+          this.sound.play('goatDismount', { pan: this.pan(e.x) });
+          break;
+        case 'knockOff':
+          this.sound.play('hurt', { volume: 0.6, rate: 1.2, pan: this.pan(e.x) });
+          this.time(0.06, () => this.sound.play('goatStartle', { pan: this.pan(e.x) }));
+          this.shake.add(0.15);
+          this.ring(e.x, e.y - 12, ['fx/spark', 'fx/dot'], 6, 90, 0.22);
+          break;
+        case 'doubleJump':
+          this.sound.play('goatDouble', { rate: rnd(0.97, 1.04), pan: this.pan(e.x) });
+          this.particles.spawn({
+            x: e.x,
+            y: e.y,
+            life: 0.25,
+            frames: ['fx2/ring_1', 'fx2/ring_2', 'fx2/ring_3'],
+          });
+          this.ring(e.x, e.y, ['fx2/sparkle_1', 'fx2/sparkle_0'], 4, 50, 0.25);
+          break;
+        case 'chargeWindup':
+          this.sound.play('goatWindup', { pan: this.pan(e.x) });
+          for (let i = 0; i < 3; i++)
+            this.dust(e.x - e.dir * 8, e.y - 1, -e.dir * rnd(30, 70), rnd(-30, -10), 's', 0.4);
+          break;
+        case 'dash':
+          this.sound.play('goatDash', { pan: this.pan(e.x) });
+          this.dust(e.x - e.dir * 8, e.y - 1, -e.dir * 60, -12, 'l', 0.35);
+          break;
+        case 'chargeBonk':
+          this.sound.play('goatBonk', { pan: this.pan(e.x) });
+          this.shake.add(0.25);
+          this.ring(e.x, e.y, ['fx/spark', 'fx/dot'], 7, 100, 0.25);
+          for (let i = 0; i < 3; i++)
+            this.particles.spawn({
+              x: e.x,
+              y: e.y + rnd(-6, 6),
+              vx: -e.dir * rnd(30, 80),
+              vy: rnd(-100, -40),
+              gravity: 500,
+              life: 0.4,
+              frames: ['fx/chip'],
+            });
+          break;
+        case 'goatReturn':
+          this.sound.play('goatBell', { volume: 0.6, pan: e.fromX < e.x ? -0.6 : 0.6 });
+          this.time(0.15, () => this.sound.play('goatReturn', { pan: e.fromX < e.x ? -0.5 : 0.5 }));
+          break;
+        case 'goatLand':
+          this.sound.play('goatLand', { pan: this.pan(e.x) });
+          this.dust(e.x - 5, e.y - 1, -25, -6, 's');
+          this.dust(e.x + 5, e.y - 1, 25, -6, 's');
+          break;
+        case 'pet':
+          this.sound.play('goatPet', { pan: this.pan(e.x) });
+          for (let i = 0; i < 3; i++)
+            this.particles.spawn({
+              x: e.x + rnd(-6, 6),
+              y: e.y - 2,
+              vx: rnd(-8, 8),
+              vy: rnd(-30, -18),
+              life: 0.9,
+              frames: [`fx2/note_${i % 3}`],
+              fade: true,
+            });
+          break;
+        // —— 第 3 关：机关和崖燕 ——
+        case 'rockBreak': {
+          this.sound.play('rockBreak', { rate: rnd(0.95, 1.05), pan: this.pan(e.x) });
+          this.shake.add(0.12);
+          for (const [c, r] of e.cells) {
+            const x = c * TILE + TILE / 2;
+            const y = r * TILE + TILE / 2;
+            for (let i = 0; i < 2; i++)
+              this.particles.spawn({
+                x: x + rnd(-4, 4),
+                y: y + rnd(-4, 4),
+                vx: rnd(-90, 90) + (x - e.x) * 2,
+                vy: rnd(-220, -90),
+                gravity: 800,
+                life: rnd(0.7, 1),
+                frames: ['block/frag_0', 'block/frag_1', 'block/frag_2', 'block/frag_3'],
+                fps: rnd(10, 18),
+                flipX: Math.random() < 0.5,
+              });
+            this.dust(x, y + 4, rnd(-30, 30), rnd(-20, -5), 'l', 0.5);
+          }
+          break;
+        }
+        case 'crystalHit':
+          this.sound.play('crystalCrack', { rate: 1 + e.stage * 0.12, pan: this.pan(e.x) });
+          this.shake.add(0.05);
+          for (let i = 0; i < 3; i++)
+            this.particles.spawn({
+              x: e.x + rnd(-5, 5),
+              y: e.y - 4,
+              vx: rnd(-70, 70),
+              vy: rnd(-150, -60),
+              gravity: 600,
+              life: 0.5,
+              frames: [`cliff/shard_${i % 2}`],
+            });
+          break;
+        case 'crystalBreak':
+          this.sound.play('crystalBreak', { pan: this.pan(e.x) });
+          this.shake.add(0.15);
+          this.ring(e.x, e.y, ['fx2/sparkle_2', 'fx2/sparkle_1', 'fx2/sparkle_0'], 8, 90, 0.4);
+          for (let i = 0; i < 10; i++)
+            this.particles.spawn({
+              x: e.x + rnd(-6, 6),
+              y: e.y + rnd(-6, 4),
+              vx: rnd(-120, 120),
+              vy: rnd(-220, -60),
+              gravity: 700,
+              life: rnd(0.5, 0.9),
+              frames: [`cliff/shard_${i % 2}`],
+            });
+          break;
+        case 'crystalClink':
+          this.sound.play('ding', { rate: 1.3, pan: this.pan(e.x) });
+          this.particles.spawn({ x: e.x, y: e.y, life: 0.12, frames: ['fx/spark'] });
+          break;
+        case 'echoRing':
+          // 钟声，再叠三次越来越远的回声（左右交替）
+          this.sound.play('echoBell', { pan: this.pan(e.x) });
+          [0.5, 1.05, 1.7].forEach((t, i) =>
+            this.time(t, () =>
+              this.sound.play('echoBell', {
+                volume: [0.45, 0.28, 0.16][i],
+                rate: 1 - (i + 1) * 0.01,
+                pan: i % 2 ? 0.6 : -0.6,
+              }),
+            ),
+          );
+          for (let i = 0; i < 3; i++)
+            this.time(i * 0.25, () =>
+              this.particles.spawn({
+                x: e.x,
+                y: e.y + 10,
+                life: 0.5,
+                frames: ['fx2/ring_0', 'fx2/ring_1', 'fx2/ring_2', 'fx2/ring_3'],
+              }),
+            );
+          break;
+        case 'gateOpen': {
+          this.sound.play('crystalBreak', { volume: 0.6, rate: 0.8 });
+          this.time(0.3, () => this.sound.play('gateRumble'));
+          this.shake.add(0.2);
+          const xs = e.cells.map(([c]) => c * TILE + TILE / 2);
+          const bottom = Math.max(...e.cells.map(([, r]) => r)) * TILE + TILE;
+          for (const x of xs)
+            for (let i = 0; i < 2; i++)
+              this.particles.spawn({
+                x: x + rnd(-6, 6),
+                y: bottom - rnd(2, 12),
+                vx: rnd(-80, 80),
+                vy: rnd(-160, -60),
+                gravity: 600,
+                life: 0.6,
+                frames: [`cliff/shard_${i % 2}`],
+              });
+          break;
+        }
+        case 'swallowWarn':
+          this.sound.play('swallowWarn', { pan: e.from * 0.6 });
+          this.time(0.18, () => this.sound.play('swallowWarn', { pan: e.from * 0.6, rate: 1.12 }));
+          break;
+        case 'enemyActivate':
+          if (e.kind === 'swallow') this.sound.play('swallowSwoosh', { pan: this.pan(e.x) });
+          break;
         case 'respawn':
           this.sound.play('respawn', { pan: this.pan(e.x) });
           for (let i = 0; i < 8; i++) {
@@ -542,6 +738,18 @@ export class Juice {
           break;
       }
     }
+  }
+
+  /** 咩铃落一次蹄子：蹄子"哒"一声，脖子上的铃叮当一下（左右两下音高错开） */
+  goatStep(x: number, y: number, speed: number): void {
+    this.stepAlt = !this.stepAlt;
+    this.sound.play('goatStep', { volume: 0.5 + speed * 0.5, pan: this.pan(x) });
+    this.sound.play('goatBell', {
+      volume: 0.35 + speed * 0.4,
+      rate: this.stepAlt ? 1 : 1.12,
+      pan: this.pan(x),
+    });
+    if (speed > 0.6 && Math.random() < 0.5) this.dust(x, y - 1, rnd(-20, 20), -8, 's', 0.25);
   }
 
   /** 一圈向外散开的粒子 */

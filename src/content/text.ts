@@ -36,6 +36,13 @@ export const KEY_HINTS = {
   drop: '从木板上跳下',
   throw: '扔海星',
   throwUp: '斜着往上扔',
+  // 第 3 关：坐骑咩铃
+  stomp: '跳上去，踩冰晶',
+  ride: '骑上咩铃（或者跳到她背上）',
+  doubleJump: '空中再按一次：二段跳',
+  charge: '冲撞',
+  dismount: '从咩铃身上下来',
+  pet: '摸摸她',
 } as const;
 
 /** 回回的提示气泡（每条只出现一次），见 docs/levels/1-1.md §4 */

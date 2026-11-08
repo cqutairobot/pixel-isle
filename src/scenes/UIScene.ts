@@ -3,6 +3,7 @@ import { audio } from '../audio/engine';
 import type { Line } from '../content/dialog/line';
 import { currentLayout, type Layout } from '../platform/display';
 import { Bubble } from '../ui/bubble';
+import { EdgeWarn } from '../ui/edgeWarn';
 import { Cinema } from '../ui/cinema';
 import { TitleCard } from '../ui/titleCard';
 import { DialogBox, type DialogHooks } from '../ui/dialogBox';
@@ -33,6 +34,7 @@ export class UIScene extends Phaser.Scene {
   hud!: Hud;
   toast!: Toast;
   keyHint!: KeyHint;
+  edgeWarn!: EdgeWarn;
   bubble!: Bubble;
   cinema!: Cinema;
   titleCard!: TitleCard;
@@ -58,6 +60,7 @@ export class UIScene extends Phaser.Scene {
     this.hud = new Hud(this);
     this.toast = new Toast(this);
     this.keyHint = new KeyHint(this);
+    this.edgeWarn = new EdgeWarn(this);
     this.bubble = new Bubble(this);
     this.cinema = new Cinema(this);
     this.titleCard = new TitleCard(this);

@@ -33,12 +33,14 @@ import { ItemGet } from '../ui/itemGet';
 import { PauseMenu } from '../ui/pauseMenu';
 import { SettingsPanel } from '../ui/settingsPanel';
 import { Tally, type TallySfx } from '../ui/tally';
+import { CliffBackground } from '../view/cliffBackground';
 import { EntityViews } from '../view/entities';
 import { HeroView } from '../view/heroView';
 import { GroveBackground } from '../view/groveBackground';
 import { IslandBackground } from '../view/islandBackground';
 import { Juice } from '../view/juice';
 import { LevelView } from '../view/levelView';
+import { MountView } from '../view/mountView';
 import { Particles } from '../view/particles';
 import { Shake } from '../view/shake';
 import { StarfishView } from '../view/starfishView';
@@ -80,7 +82,8 @@ export class LevelScene extends Phaser.Scene {
   private particles!: Particles;
   private shake = new Shake();
   private juice!: Juice;
-  private bg!: IslandBackground | GroveBackground;
+  private bg!: IslandBackground | GroveBackground | CliffBackground;
+  private mount!: MountView;
   private starfishView!: StarfishView;
   private view!: LevelView;
   private ents!: EntityViews;
@@ -163,10 +166,13 @@ export class LevelScene extends Phaser.Scene {
     }
     this.startX = this.world.player.body.x;
 
+    const theme = this.level.themes[0]?.theme;
     this.bg =
-      this.level.themes[0]?.theme === 'grove'
+      theme === 'grove'
         ? new GroveBackground(this, this.level)
-        : new IslandBackground(this, this.level, this.mode === 'prologue');
+        : theme === 'cliff'
+          ? new CliffBackground(this, this.level)
+          : new IslandBackground(this, this.level, this.mode === 'prologue');
     this.view = new LevelView(this, this.level);
     this.particles = new Particles(this);
     this.ents = new EntityViews(this, this.world, this.particles);
@@ -182,6 +188,8 @@ export class LevelScene extends Phaser.Scene {
       audio,
       () => this.cameras.main.scrollX,
     );
+    this.mount = new MountView(this, this.world, this.particles, this.hero.sprite);
+    this.mount.onStep = (x, y, speed) => this.juice.goatStep(x, y, speed);
     this.devices = new InputDevices();
     this.gray = this.cameras.main.filters.internal.addColorMatrix();
     this.gray.colorMatrix.grayscale(1);
@@ -213,6 +221,8 @@ export class LevelScene extends Phaser.Scene {
       this.devices.destroy();
       this.ui.closeAll();
       this.ui.bubble.hide();
+      this.ui.edgeWarn.clear();
+      this.ui.hud.setMount(false);
       this.ui.setLevelUI(false);
     });
 
@@ -250,9 +260,10 @@ export class LevelScene extends Phaser.Scene {
     else if (!cp) this.time.delayedCall(600, () => this.showTitleCard());
   }
 
-  /** 环境声：椰林里是风吹树叶加远处的海浪，其他地方是海浪 */
-  private ambience(): 'sea' | 'grove' {
-    return this.level.themes[0]?.theme === 'grove' ? 'grove' : 'sea';
+  /** 环境声：椰林里是风吹树叶加远处的海浪，海崖上是风，其他地方是海浪 */
+  private ambience(): 'sea' | 'grove' | 'wind' {
+    const theme = this.level.themes[0]?.theme;
+    return theme === 'grove' ? 'grove' : theme === 'cliff' ? 'wind' : 'sea';
   }
 
   /** 关卡开场标题卡：章节名、关卡名、本关找到过的海玻璃 */
@@ -499,7 +510,7 @@ export class LevelScene extends Phaser.Scene {
       scene: this,
       ui: this.ui,
       particles: this.particles,
-      hero: { x: b.centerX, y: b.bottom, facing: w.player.facing },
+      hero: { x: b.centerX, y: b.bottom, facing: w.player.facing, mounted: !!w.player.ride },
       camera: { x: cam.scrollX - this.shake.x, y: cam.scrollY - this.shake.y },
       bounds: { w: this.level.grid.widthPx, h: this.level.grid.heightPx },
       headOf: (who) => this.ents.headOf(who),
@@ -595,6 +606,14 @@ export class LevelScene extends Phaser.Scene {
     const npc = /^npc:(\w+):(hide|show)$/.exec(name);
     if (npc) {
       this.ents.setNpcVisible(npc[1]!, npc[2] === 'show');
+      return;
+    }
+    if (name === 'echoReveal') {
+      this.ents.echoReveal();
+      return;
+    }
+    if (name === 'goat:hide' || name === 'goat:show') {
+      this.mount.hidden = name === 'goat:hide';
       return;
     }
     if (name === 'lightsOut') {
@@ -724,6 +743,50 @@ export class LevelScene extends Phaser.Scene {
         case 'urchinShake':
           this.hint('hang');
           break;
+        // —— 坐骑咩铃 ——
+        case 'mount':
+          hud.setMount(true);
+          this.ui.keyHint.done('ride');
+          this.time.delayedCall(250, () => this.hint('ride'));
+          break;
+        case 'dismount':
+          hud.setMount(false);
+          this.ui.keyHint.done('dismount');
+          break;
+        case 'knockOff':
+          hud.setMount(false);
+          this.time.delayedCall(400, () => this.hint('knocked'));
+          break;
+        case 'goatFlee':
+          this.ents.emote(() => this.mount.headPos, 'bang', 0.9);
+          break;
+        case 'chargeWindup':
+          hud.setEquipOut(true);
+          break;
+        case 'dashEnd':
+          this.time.delayedCall(200, () => hud.setEquipOut(false));
+          break;
+        case 'chargeBonk':
+          this.time.delayedCall(320, () => hud.setEquipOut(false));
+          break;
+        case 'doubleJump':
+          this.ui.keyHint.done('doubleJump');
+          break;
+        case 'rockBreak':
+          this.ui.keyHint.done('charge');
+          break;
+        case 'pet':
+          this.ui.keyHint.done('pet');
+          this.ents.emote(() => this.mount.headPos, 'note', 1.2);
+          this.time.delayedCall(500, () => this.hint('pet'));
+          break;
+        case 'crystalHit':
+          this.ui.keyHint.done('stomp');
+          break;
+        case 'swallowWarn':
+          this.ui.edgeWarn.show(e.from, e.ys, e.frames);
+          this.hint('swallow');
+          break;
         case 'coconutBreak':
           this.time.delayedCall(300, () => this.hint('coconut'));
           break;
@@ -797,6 +860,8 @@ export class LevelScene extends Phaser.Scene {
             if (this.ui.transition.covered && !this.ui.transition.busy)
               void this.ui.transition.reveal(0.3);
           } else {
+            hud.setMount(!!w.player.ride);
+            this.ui.edgeWarn.clear();
             // 清掉镜头上残留的淡出、闪光（否则会一直黑屏），再从小满的位置张开
             this.cameras.main.resetFX();
             this.time.delayedCall(30, () => {
@@ -994,7 +1059,8 @@ export class LevelScene extends Phaser.Scene {
         this.hero.override = Math.floor(this.clearT * 4) % 2 ? 'victory_1' : 'victory_0';
       if (this.clearT > 1.7 && this.clearT - dt <= 1.7) this.openTally();
     } else {
-      this.hero.override = w.stun > 0 ? 'hurt' : null;
+      // 骑着撞墙晕了：晕的是咩铃，小满还坐着
+      this.hero.override = w.stun > 0 && !p.ride ? 'hurt' : null;
       if (w.iframes > 0 && (w.iframes >> 2) % 2 === 1) visible = false;
     }
     // 主角一下子挪了很远（过场结束、传送）：帽带直接放到新位置，不要拉出长线
@@ -1011,11 +1077,21 @@ export class LevelScene extends Phaser.Scene {
         crouching: false,
         lookingUp: false,
         skidding: false,
+        ride: pup.mounted ? { airJumps: 1, windup: 0, dash: 0, dashDir: 1, cooldown: 0 } : null,
       } as unknown as Player;
       this.hero.update(dt, puppet, w.tuning, hx, hy, visible);
     } else this.hero.update(dt, p, w.tuning, hx, hy, visible);
+    this.mount.update(
+      dt,
+      alpha,
+      hx,
+      hy,
+      visible,
+      pup ? { x: pup.x, y: pup.y, facing: pup.facing, mounted: pup.mounted, vx: pup.vx } : null,
+    );
     this.ents.update(dt, alpha, cx);
     this.starfishView.update(dt, alpha);
+    this.ui.edgeWarn.update(dt, cy, settings.reduceFlash);
     // 前景叶子：小满或敌人走到后面时变透明
     const fronts = [{ x: hx - b.w / 2, y: hy - b.h, w: b.w, h: b.h }];
     for (const e of w.enemies) if (e.alive && e.active) fronts.push(e.body);

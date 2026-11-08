@@ -20,6 +20,8 @@ export const SPEAKERS: Record<string, Speaker> = {
   grandpa: { name: '钟爷爷', color: 'bark', bg: 'sand3', portrait: 'grandpa', voice: 0.78 },
   shuangjiang: { name: '霜降', color: 'violet', bg: 'mist', portrait: 'shuangjiang', voice: 0.62 },
   daishu: { name: '大暑', color: 'orange', bg: 'sand3', portrait: 'daishu', voice: 0.85 },
+  guyu: { name: '谷雨', color: 'leaf1', bg: 'leaf3', portrait: 'guyu', voice: 1.6 },
+  mieling: { name: '咩铃', color: 'red1', bg: 'sky', portrait: 'mieling', voice: 1.9 },
   narrator: { name: '', color: 'night', bg: 'night', portrait: null, voice: 1 },
 };
 

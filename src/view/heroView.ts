@@ -1,12 +1,16 @@
 import type Phaser from 'phaser';
-import { HERO_H, HERO_HAT_DY, HERO_W, RIBBON_ANCHOR } from '../art/hero';
+import { HERO_H, HERO_HAT_DX, HERO_HAT_DY, HERO_W, RIBBON_ANCHOR } from '../art/hero';
 import type { SimEvent } from '../sim/events';
 import { clamp01 } from '../sim/math';
 import type { Player } from '../sim/player';
 import type { Tuning } from '../sim/tuning';
+import { SADDLE_DX, SADDLE_DY } from './mountView';
 import { Ribbon } from './ribbon';
 import { Spring } from './spring';
 import { ATLAS } from './textures';
+
+/** 从咩铃身上后翻下来转一圈的时间（秒） */
+const FLIP_TIME = 0.42;
 
 /** 落地冲击（0.15–1）：下落 6 格及以上为 1 */
 export function landImpact(fall: number): number {
@@ -36,8 +40,8 @@ export class HeroView {
   private flashTime = 0;
   /** 关卡场景指定的帧（受击、倒地、胜利、过场姿势）；null 按状态自动选 */
   override: string | null = null;
-  /** 短暂的动作姿势（扔海星、接住），优先级低于 override */
-  private act: { kind: 'throw' | 'catch'; up: boolean; t: number } | null = null;
+  /** 短暂的动作姿势（扔海星、接住、从咩铃身上后翻下来、摸咩铃），优先级低于 override */
+  private act: { kind: 'throw' | 'catch' | 'flip' | 'pet'; up: boolean; t: number } | null = null;
   /** 减少闪烁：受击时不白闪 */
   reduceFlash = false;
   /** 跑步动画里脚着地的那一帧回调（播放脚步声、扬尘） */
@@ -94,6 +98,21 @@ export class HeroView {
         this.sx.set(0.92);
         this.sy.set(1.08);
         break;
+      case 'mount':
+        this.sx.set(1.2);
+        this.sy.set(0.84);
+        break;
+      case 'doubleJump':
+        this.sx.set(0.82);
+        this.sy.set(1.2);
+        break;
+      case 'dismount':
+        // 后翻：转一整圈（见 update）
+        this.act = { kind: 'flip', up: false, t: FLIP_TIME };
+        break;
+      case 'pet':
+        this.act = { kind: 'pet', up: false, t: 0.9 };
+        break;
       case 'hurt':
         this.act = null;
         if (e.dir !== 0) {
@@ -115,6 +134,11 @@ export class HeroView {
       this.act.t -= dt;
       if (this.act.t <= 0) this.act = null;
     }
+    // 骑着咩铃：画在她背上（脚底往上挪到鞍子的高度，往身后挪一点）
+    if (p.ride) {
+      x -= SADDLE_DX * p.facing;
+      y -= SADDLE_DY;
+    }
     this.frame = this.override ?? this.actFrame(p) ?? this.pickFrame(dt, p, t, x, y);
     const s = this.sprite;
     s.setFrame(`hero/${this.frame}`);
@@ -130,14 +154,23 @@ export class HeroView {
     const scaleX = this.sx.update(dt);
     const scaleY = this.sy.update(dt);
     s.setScale(scaleX, scaleY);
-    s.setPosition(x, y);
+    if (this.act?.kind === 'flip' && !this.override) {
+      // 后翻：绕身体中心往后转一圈
+      const k = 1 - this.act.t / FLIP_TIME;
+      s.setOrigin(0.5, 0.5).setRotation(-p.facing * k * Math.PI * 2);
+      s.setPosition(x, y - HERO_H / 2);
+    } else {
+      s.setOrigin(0.5, 1).setRotation(0);
+      s.setPosition(x, y);
+    }
     if (this.flicker > 0) this.flicker -= dt;
     const shown = visible && (this.flicker <= 0 || Math.floor(this.flicker * 15) % 2 === 0);
     s.setVisible(shown);
 
     // 帽带结的位置：随朝向镜像、随挤压拉伸缩放、随帽子上下
     const hatDy = HERO_HAT_DY[this.frame] ?? 0;
-    const localX = p.facing > 0 ? RIBBON_ANCHOR.x + 0.5 : HERO_W - RIBBON_ANCHOR.x - 0.5;
+    const hatDx = (HERO_HAT_DX[this.frame] ?? 0) * p.facing;
+    const localX = (p.facing > 0 ? RIBBON_ANCHOR.x + 0.5 : HERO_W - RIBBON_ANCHOR.x - 0.5) + hatDx;
     const ax = x + (localX - HERO_W / 2) * scaleX;
     const ay = y + (RIBBON_ANCHOR.y + hatDy + 0.5 - HERO_H) * scaleY;
     this.ribbon.update(ax, ay, p.facing, p.vx, p.vy, dt);
@@ -151,12 +184,36 @@ export class HeroView {
   private actFrame(p: Player): string | null {
     const a = this.act;
     if (!a) return null;
+    if (a.kind === 'flip') return 'jump';
+    if (a.kind === 'pet')
+      return p.onGround && Math.abs(p.vx) < 8
+        ? Math.floor(a.t * 6) % 2
+          ? 'pet_1'
+          : 'pet_0'
+        : null;
     if (a.kind === 'catch') return p.onGround && Math.abs(p.vx) < 8 ? 'catch' : null;
     if (!p.onGround) return a.up ? 'throw_air_up' : 'throw_air';
     return a.up ? 'throw_up' : 'throw_1';
   }
 
+  /** 骑着咩铃：蓄力、冲刺时前倾，跳起来时收腿，跑起来随步伐起伏 */
+  private rideFrame(dt: number, p: Player): string {
+    const r = p.ride!;
+    this.fallTime = 0;
+    if (r.windup > 0 || r.dash > 0) return 'ride_lean';
+    if (!p.onGround) return 'ride_up';
+    const speed = Math.abs(p.vx);
+    if (speed > 8) {
+      this.idleTime = 0;
+      this.runPhase += (speed * dt) / 18;
+      return Math.floor(this.runPhase) % 2 ? 'ride_1' : 'ride_0';
+    }
+    this.idleTime += dt;
+    return Math.floor(this.idleTime * 1.6) % 2 ? 'ride_1' : 'ride_0';
+  }
+
   private pickFrame(dt: number, p: Player, t: Tuning, x: number, y: number): string {
+    if (p.ride) return this.rideFrame(dt, p);
     const speed = Math.abs(p.vx);
     if (!p.onGround) {
       this.fallTime += dt;

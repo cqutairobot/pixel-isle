@@ -3,7 +3,7 @@ import { waterSheet } from '../art/water';
 import { buildLevelTileset } from '../art/terrain';
 import { TILE } from '../sim/constants';
 import { T_ONEWAY, T_SOLID, T_WATER } from '../sim/grid';
-import { themeAt, type EntityDef, type ParsedLevel } from '../sim/level';
+import { MAT_CLOUD, themeAt, type EntityDef, type ParsedLevel } from '../sim/level';
 import { addImageTexture, ATLAS, buildTilesetTexture, TILE_MARGIN, TILE_SPACING } from './textures';
 
 /** 每种装饰用哪一帧、锚点在哪（默认左下角对齐格子左下角） */
@@ -113,9 +113,11 @@ export class LevelView {
       for (let i = 0; i < 4; i++) {
         addImageTexture(scene, `water-s${i}`, waterSheet.frames[`surface_${i}`]!);
         addImageTexture(scene, `stream-s${i}`, waterSheet.frames[`stream_surface_${i}`]!);
+        addImageTexture(scene, `cloud-s${i}`, waterSheet.frames[`cloud_surface_${i}`]!);
       }
       addImageTexture(scene, 'water-b', waterSheet.frames.body!);
       addImageTexture(scene, 'stream-b', waterSheet.frames.stream_body!);
+      addImageTexture(scene, 'cloud-b', waterSheet.frames.cloud_body!);
     }
     const g = this.level.grid;
     for (let r = 0; r < g.rows; r++) {
@@ -133,8 +135,13 @@ export class LevelView {
           (g.get(end + 1, r - 1) !== T_WATER) === surface
         )
           end++;
-        // 椰林里的小溪偏绿
-        const pre = themeAt(this.level, c) === 'grove' ? 'stream' : 'water';
+        // 椰林里的小溪偏绿；回声崖的"水"是云海
+        const pre =
+          this.level.material[r * g.cols + c] === MAT_CLOUD
+            ? 'cloud'
+            : themeAt(this.level, c) === 'grove'
+              ? 'stream'
+              : 'water';
         const ts = scene.add
           .tileSprite(
             c * TILE,

@@ -244,6 +244,45 @@ frames.urchin_1 = urchin({ phase: 1 });
 frames.urchin_hang = urchin({ hang: true });
 frames.urchin_hang_1 = urchin({ hang: true, phase: 1 });
 for (let i = 0; i < 4; i++) frames[`urchin_free_${i}`] = urchin({ freed: true, roll: i });
+/**
+ * 崖燕（16×10，中心为原点，默认朝右）：深蓝的背、白肚皮、红喉咙、分叉的长尾巴，背上一点冰晶。
+ * 帧：翅膀上、中、下 3 帧（飞得快，循环要快）；恢复原样（没有冰晶、眼睛不再发蓝）2 帧。
+ */
+function swallow(o: { wing?: number; freed?: boolean }): RGBAImage {
+  const p = new Paint(18, 11);
+  const back: ColorName = o.freed ? 'night' : 'deep';
+  // 分叉的尾巴
+  p.line(5, 5, 1, 2, back).line(5, 6, 1, 9, back);
+  p.set(0, 2, back).set(0, 9, back);
+  // 身子：上面深色，肚子白
+  p.ellipse(8.5, 5.5, 4.6, 2.2, back);
+  p.hline(6, 11, 7, 'white').hline(7, 10, 6, 'white');
+  // 头、红喉咙、尖嘴
+  p.disc(13, 4.8, 1.8, back);
+  p.set(14, 6, 'red2').set(13, 6, 'red1');
+  p.set(15, 4, o.freed ? 'ink' : 'slate').set(16, 4, o.freed ? 'ink' : 'slate');
+  p.set(13, 4, o.freed ? 'white' : 'frost');
+  // 翅膀：长而尖
+  const w = o.wing ?? 1;
+  if (w === 0) {
+    // 往上往后掠起的翅膀（不是竖直的背鳍）
+    p.line(10, 4, 4, 0, back).line(11, 4, 5, 1, back).set(3, 0, back);
+  } else if (w === 1) {
+    p.line(4, 4, 11, 4, back).line(3, 3, 9, 3, back);
+  } else {
+    p.line(9, 6, 6, 10, back).line(10, 6, 7, 10, back);
+  }
+  // 背上的冰晶
+  if (!o.freed) p.set(9, 3, 'frost').set(10, 2, 'white').set(11, 3, 'frost');
+  p.outline('ink');
+  return p.toImage();
+}
+
+frames.swallow_0 = swallow({ wing: 0 });
+frames.swallow_1 = swallow({ wing: 1 });
+frames.swallow_2 = swallow({ wing: 2 });
+frames.swallow_free_0 = swallow({ wing: 0, freed: true });
+frames.swallow_free_1 = swallow({ wing: 2, freed: true });
 frames.gull_0 = gull({ wing: 0 });
 frames.gull_1 = gull({ wing: 1 });
 frames.gull_2 = gull({ wing: 2 });

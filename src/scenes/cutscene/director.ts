@@ -33,6 +33,8 @@ export interface Puppet {
   /** 指定的姿势帧（hero/ 下的帧名）；null 按走动自动选 */
   pose: string | null;
   visible: boolean;
+  /** 骑着咩铃（第 3 关） */
+  mounted: boolean;
 }
 
 /** 导演需要关卡场景提供的东西 */
@@ -40,8 +42,8 @@ export interface DirectorHost {
   scene: Phaser.Scene;
   ui: UIScene;
   particles: Particles;
-  /** 过场开始时小满的位置和朝向 */
-  hero: { x: number; y: number; facing: 1 | -1 };
+  /** 过场开始时小满的位置和朝向、骑没骑着咩铃 */
+  hero: { x: number; y: number; facing: 1 | -1; mounted?: boolean };
   /** 过场开始时镜头左上角 */
   camera: Point;
   /** 关卡尺寸（px），过场镜头不出界 */
@@ -128,7 +130,7 @@ export class Director {
   private time = 0;
 
   constructor(private host: DirectorHost) {
-    this.hero = { ...host.hero, vx: 0, pose: null, visible: true };
+    this.hero = { ...host.hero, mounted: !!host.hero.mounted, vx: 0, pose: null, visible: true };
     this.cam.x = host.camera.x;
     this.cam.y = host.camera.y;
   }

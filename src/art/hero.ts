@@ -113,6 +113,22 @@ const TORSO_THROW_UP = grid(`
   ....owwwwwWWo...
   ....oswwwwWo....
 `);
+// 骑咩铃（第 3 关）：两手往前扶着她的脖子；摸咩铃：手往前下方伸、上下抚摸
+const TORSO_RIDE = grid(`
+  .....owwwwwo....
+  ....owwwwwWWo...
+  ....oswwwwWosso.
+`);
+const TORSO_PET_0 = grid(`
+  .....owwwwwo....
+  ....owwwwwWWo...
+  ....oswwwwWWosso
+`);
+const TORSO_PET_1 = grid(`
+  .....owwwwwo....
+  ....owwwwwWWosso
+  ....oswwwwWWo...
+`);
 
 // 裙子：第 14–15 行
 const SKIRT = grid(`
@@ -167,9 +183,19 @@ const LEGS_SKID = grid(`
   ...oso...oso....
   ..obbbo..obbo...
 `);
+// 骑在咩铃背上：大腿往前、小腿垂下来（只看得到靠镜头这一边）
+const LEGS_RIDE = grid(`
+  ......ossso.....
+  ........obbo....
+`);
+const LEGS_RIDE_TUCK = grid(`
+  ......osssso....
+  .........obo....
+`);
 
-/** 每一帧帽子相对默认位置的竖直偏移，飘带锚点要跟着帽子走 */
+/** 每一帧帽子相对默认位置的竖直、水平偏移，飘带锚点要跟着帽子走 */
 export const HERO_HAT_DY: Record<string, number> = {};
+export const HERO_HAT_DX: Record<string, number> = {};
 let currentFrameName = '';
 
 /** 按部件拼出一帧；dy 让上半身整体下移（呼吸、跑步起伏、下蹲） */
@@ -180,16 +206,20 @@ function frame(opts: {
   legs?: PixelGrid;
   dy?: number;
   hatDy?: number;
+  /** 上半身（上身、头、帽子）往前探（冲撞时前倾） */
+  dx?: number;
 }): PixelGrid {
   const dy = opts.dy ?? 0;
+  const dx = opts.dx ?? 0;
   const hatDy = opts.hatDy ?? dy;
   HERO_HAT_DY[currentFrameName] = hatDy;
+  HERO_HAT_DX[currentFrameName] = dx;
   return compose(HERO_W, HERO_H, [
     [opts.legs ?? LEGS_STAND, 0, 16],
     [opts.skirt ?? SKIRT, 0, 14 + Math.min(dy, 1)],
-    [opts.torso ?? TORSO, 0, 11 + dy],
-    [opts.head ?? HEAD, 0, 6 + dy],
-    [HAT, 0, hatDy],
+    [opts.torso ?? TORSO, dx, 11 + dy],
+    [opts.head ?? HEAD, dx, 6 + dy],
+    [HAT, dx, hatDy],
   ]);
 }
 
@@ -242,6 +272,14 @@ export const heroSheet: Sheet = {
     throw_air_up: () =>
       frame({ head: HEAD_UP, torso: TORSO_THROW_UP, legs: LEGS_TUCK, skirt: SKIRT_FLARE }),
     catch: () => frame({ head: HEAD_HAPPY, torso: TORSO_OUT }),
+    // 第 3 关新增：骑咩铃（坐着随步伐起伏、跳起来、冲撞时前倾）、蹲下摸咩铃
+    ride_0: () => frame({ legs: LEGS_RIDE, skirt: SKIRT_FLARE, torso: TORSO_RIDE }),
+    ride_1: () => frame({ legs: LEGS_RIDE, skirt: SKIRT_FLARE, torso: TORSO_RIDE, dy: 1 }),
+    ride_up: () => frame({ legs: LEGS_RIDE_TUCK, skirt: SKIRT_FLARE, torso: TORSO_UP, hatDy: -1 }),
+    ride_lean: () =>
+      frame({ legs: LEGS_RIDE, skirt: SKIRT_FLARE, torso: TORSO_RIDE, dx: 1, dy: 1 }),
+    pet_0: () => frame({ head: HEAD_HAPPY, torso: TORSO_PET_0, legs: LEGS_TUCK, dy: 3 }),
+    pet_1: () => frame({ head: HEAD_HAPPY, torso: TORSO_PET_1, legs: LEGS_TUCK, dy: 3 }),
   }),
 };
 

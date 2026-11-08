@@ -18,6 +18,12 @@ const KEYS: Record<KeyHintId, Record<Scheme, string[]>> = {
   drop: { wasd: ['S', '+', 'K'], arrows: ['↓', '+', 'Z'], pad: ['↓', '+', 'A'] },
   throw: { wasd: ['J'], arrows: ['X'], pad: ['X'] },
   throwUp: { wasd: ['W', '+', 'J'], arrows: ['↑', '+', 'X'], pad: ['↑', '+', 'X'] },
+  stomp: { wasd: ['K'], arrows: ['Z'], pad: ['A'] },
+  ride: { wasd: ['W'], arrows: ['↑'], pad: ['↑'] },
+  doubleJump: { wasd: ['K'], arrows: ['Z'], pad: ['A'] },
+  charge: { wasd: ['J'], arrows: ['X'], pad: ['X'] },
+  dismount: { wasd: ['L'], arrows: ['C'], pad: ['Y'] },
+  pet: { wasd: ['S'], arrows: ['↓'], pad: ['↓'] },
 };
 
 /**

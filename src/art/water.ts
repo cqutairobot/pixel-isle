@@ -57,10 +57,52 @@ function body(k: WaterColors = SEA): RGBAImage {
   return p.toImage();
 }
 
-const frames: Record<string, RGBAImage> = { body: body(), stream_body: body(STREAM) };
+/**
+ * 云海（第 3 关，16×16，可横向平铺）：顶上一排蓬松的云团（4 帧，慢慢往一边涌），
+ * 下面白里透蓝。游戏里半透明地画在主角前面，掉进去就看不见了。
+ */
+function cloudSurface(frame: number): RGBAImage {
+  const p = new Paint(16, 16);
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 16; x++) {
+      const t = y / 15;
+      p.set(
+        x,
+        y,
+        t < 0.5
+          ? ditherPick(x, y, t * 1.4, 'white', 'cloud')
+          : ditherPick(x, y, (t - 0.5) * 1.6, 'cloud', 'mist'),
+      );
+    }
+  // 云团的顶：两个半圆形的鼓包，随帧往右涌
+  for (let x = 0; x < 16; x++) {
+    const xx = (x + frame * 2) % 16;
+    const k = xx < 8 ? xx : xx - 8;
+    const top = Math.round(4 - Math.sqrt(Math.max(0, 16 - (k - 4) * (k - 4))));
+    for (let y = 0; y < top; y++) p.set(x, y, null);
+    p.set(x, top, 'white');
+    if (k === 1 || k === 7) p.set(x, top + 1, 'cloud');
+  }
+  return p.toImage();
+}
+
+function cloudBody(): RGBAImage {
+  const p = new Paint(16, 16);
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 16; x++) p.set(x, y, ditherPick(x, y, 0.45 + y / 60, 'cloud', 'mist'));
+  p.set(3, 4, 'white').set(4, 4, 'white').set(11, 10, 'white');
+  return p.toImage();
+}
+
+const frames: Record<string, RGBAImage> = {
+  body: body(),
+  stream_body: body(STREAM),
+  cloud_body: cloudBody(),
+};
 for (let i = 0; i < 4; i++) {
   frames[`surface_${i}`] = surface(i);
   frames[`stream_surface_${i}`] = surface(i, STREAM);
+  frames[`cloud_surface_${i}`] = cloudSurface(i);
 }
 
 export const waterSheet: ImageSheet = { key: 'water', frames };

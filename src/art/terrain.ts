@@ -1,6 +1,8 @@
 import { T_ONEWAY, T_SOLID, type Grid } from '../sim/grid';
 import {
   MAT_BARK,
+  MAT_BOARDWALK,
+  MAT_CLIFF,
   MAT_CRATE,
   MAT_GROUND,
   MAT_GROVE,
@@ -489,6 +491,8 @@ const DRAWN = new Set([
   MAT_LEAF,
   MAT_BARK,
   MAT_VINE,
+  MAT_CLIFF,
+  MAT_BOARDWALK,
 ]);
 
 function drawMaterial(
@@ -500,7 +504,7 @@ function drawMaterial(
   horizontal: boolean,
 ): RGBAImage {
   if (terrain === 'gym') {
-    return m === MAT_PLANK || m === MAT_LEAF || m === MAT_VINE
+    return m === MAT_PLANK || m === MAT_LEAF || m === MAT_VINE || m === MAT_BOARDWALK
       ? drawPlankTile(mask, GYM_THEME.plank, variant)
       : drawGroundTile(mask, GYM_THEME.ground, variant);
   }
@@ -519,6 +523,10 @@ function drawMaterial(
       return drawBarkTile(mask, horizontal, variant);
     case MAT_VINE:
       return drawVineTile(mask, variant);
+    case MAT_CLIFF:
+      return drawCliffTile(mask, depth, variant);
+    case MAT_BOARDWALK:
+      return drawBoardwalkTile(mask, variant);
     default:
       return drawEarthTile(mask, depth, variant, 'grass');
   }
@@ -867,4 +875,102 @@ export function drawVineTile(mask: number, variant: number): RGBAImage {
     hang(13, -1);
   }
   return image(px);
+}
+
+// —— 回声崖（第 3 关）——
+
+/**
+ * 崖石：灰色的岩层，一道道斜斜的深色层理，层理上方一线亮边；越深越暗、越偏蓝。
+ * 顶面露在外面时盖一层被风吹得往右倒的草皮。
+ */
+export function drawCliffTile(mask: number, depth: number, variant: number): RGBAImage {
+  const n = (mask & N) !== 0;
+  const e = (mask & E) !== 0;
+  const s = (mask & S) !== 0;
+  const w = (mask & W) !== 0;
+  const { px, set, get } = canvas();
+  const bands: Array<[number, ColorName]> = [
+    [0, 'stone'],
+    [26, 'stone'],
+    [58, 'slate'],
+  ];
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 16; x++) set(x, y, depthColor(x + variant * 3, y, depth * 16 + y, bands));
+  // 岩层：每 5–6 px 一道，带一点起伏；全局 y 对齐，相邻格子能接上
+  for (let x = 0; x < 16; x++) {
+    for (let k = 0; k < 4; k++) {
+      const base = 3 + k * 5 + (depth % 2) * 2;
+      const y = base + ((x + variant * 4 + k * 3) % 11 < 4 ? 1 : 0);
+      if (y < 0 || y > 15) continue;
+      const deep = depth * 16 + y > 40;
+      set(x, y, deep ? 'night' : 'slate');
+      if (y > 0 && !deep && (x + k) % 3 !== 0) set(x, y - 1, 'mist');
+    }
+  }
+  // 小石子和裂缝
+  const h0 = hash2(variant, depth, 13);
+  if (h0 % 3 === 0) {
+    const x = 3 + ((h0 >> 3) % 10);
+    const y = 4 + ((h0 >> 7) % 9);
+    set(x, y, 'slate');
+    set(x + 1, y + 1, 'slate');
+  }
+  // 顶面：草皮，被风吹得往右倒
+  if (!n) {
+    for (let x = 0; x < 16; x++) {
+      const hx = hash2(variant, x, 23);
+      set(x, 0, 'leaf1');
+      set(x, 1, (hx & 3) === 0 ? 'leaf3' : 'leaf2');
+      set(x, 2, 'leaf1');
+      set(x, 3, (hx >> 2) % 3 === 0 ? 'leaf1' : 'pine');
+      if ((hx >> 4) % 5 === 0) set(x + 1, 4, 'pine');
+    }
+  }
+  const side: ColorName = 'night';
+  if (!w)
+    for (let y = 0; y < 16; y++) {
+      const top = !n && y < 4;
+      set(0, y, top ? 'pine' : side);
+      if (!top && get(1, y) !== side) set(1, y, 'mist');
+    }
+  if (!e)
+    for (let y = 0; y < 16; y++) {
+      const top = !n && y < 4;
+      set(15, y, top ? 'pine' : side);
+      if (!top) set(14, y, 'slate');
+    }
+  if (!s)
+    for (let x = 0; x < 16; x++) {
+      set(x, 15, side);
+      if (get(x, 14) !== side) set(x, 14, 'slate');
+    }
+  if (!n && !w) set(0, 0, null);
+  if (!n && !e) set(15, 0, null);
+  if (!s && !w) set(0, 15, null);
+  if (!s && !e) set(15, 15, null);
+  if (n && w && !(mask & NW)) set(0, 0, side);
+  if (n && e && !(mask & NE)) set(15, 0, side);
+  if (s && w && !(mask & SW)) set(0, 15, side);
+  if (s && e && !(mask & SE)) set(15, 15, side);
+  return image(px);
+}
+
+const BOARDWALK_PLANK: PlankStyle = { outline: 'night', top: 'sand2', mid: 'sand1', low: 'bark' };
+
+/** 栈道：风吹日晒发暗的木板，每隔一块绑着一圈麻绳，两端底下有撑在崖壁上的斜木 */
+export function drawBoardwalkTile(mask: number, variant: number): RGBAImage {
+  const img = drawPlankTile(mask, BOARDWALK_PLANK, variant);
+  if (variant % 2 === 0) {
+    // 麻绳
+    const [r, g, b] = hexToRgb(PALETTE.sand3);
+    for (const x of [6, 7])
+      for (let y = 1; y <= 4; y++) {
+        const i = (y * 16 + x) * 4;
+        img.data[i] = r;
+        img.data[i + 1] = g;
+        img.data[i + 2] = b;
+        img.data[i + 3] = 255;
+      }
+  }
+  return img;
 }

@@ -357,7 +357,79 @@ function glow(r: number): RGBAImage {
   return p.toImage();
 }
 
+// —— 谷雨（第 3 关）：十岁的放羊娃，乱蓬蓬的棕色头发翘着一撮呆毛，绿色短褂系草绳，
+// 手里一根顶上打弯的放羊杖。比小满还矮一点 ——
+type GuyuPose = 'idle' | 'cry' | 'wave' | 'run' | 'hug';
+
+function guyu(frame: number, pose: GuyuPose = 'idle'): RGBAImage {
+  // 宽 18：右边给放羊杖和挥手留位置
+  const p = new Paint(18, 19);
+  const o = 2;
+  const bob = pose === 'idle' || pose === 'cry' ? frame % 2 : 0;
+  // 腿和草鞋
+  if (pose === 'run') {
+    const k = frame % 2;
+    p.line(o + 4, 15, o + 2 + k * 3, 17, 'skin1').line(o + 7, 15, o + 9 - k * 3, 17, 'skin1');
+    p.set(o + 2 + k * 3, 18, 'straw').set(o + 9 - k * 3, 18, 'straw');
+  } else {
+    p.rect(o + 4, 15, 2, 3, 'skin1').rect(o + 7, 15, 2, 3, 'skin1');
+    p.hline(o + 3, o + 5, 18, 'straw').hline(o + 7, o + 9, 18, 'straw');
+  }
+  // 棕色短裤
+  p.rect(o + 3, 13, 7, 2, 'ochre');
+  // 绿色短褂、草绳腰带
+  p.rect(o + 3, 9 + bob, 7, 4 - bob, 'leaf2');
+  p.vline(o + 9, 9 + bob, 12, 'leaf1');
+  p.hline(o + 3, o + 9, 12, 'sand2');
+  p.set(o + 6, 12, 'sand1');
+  // 手：放羊杖 / 揉眼睛 / 挥手 / 往前抱
+  if (pose === 'cry') {
+    p.line(o + 3, 10 + bob, o + 4, 6 + bob, 'skin2').line(o + 9, 10 + bob, o + 8, 6 + bob, 'skin2');
+  } else if (pose === 'wave') {
+    const up = frame % 2;
+    p.line(o + 10, 9, o + 12, 5 - up, 'skin2').set(o + 12, 4 - up, 'skin2');
+    p.line(o + 3, 10, o + 2, 12, 'skin2');
+  } else if (pose === 'hug') {
+    p.line(o + 9, 10, o + 13, 10, 'skin2').line(o + 3, 10, o + 1, 11, 'skin2');
+  } else {
+    // 放羊杖：比人高，顶上打个弯
+    const sx = o + 12;
+    p.vline(sx, 3, 18, 'sand1');
+    p.set(sx - 1, 2, 'sand1')
+      .set(sx - 2, 2, 'sand1')
+      .set(sx - 3, 3, 'sand1')
+      .set(sx - 3, 4, 'sand1');
+    p.set(sx, 2, 'sand2');
+    p.line(o + 9, 10 + bob, o + 11, 10, 'skin2');
+    p.line(o + 3, 10 + bob, o + 2, 12, 'skin2');
+  }
+  // 脸
+  const eyes = pose === 'cry' ? 'closed' : pose === 'hug' || pose === 'wave' ? 'happy' : 'open';
+  face(p, o + 6, 2 + bob, 'skin2', { eyes });
+  if (pose === 'cry') {
+    // 眼泪往下流
+    p.set(o + 6, 6 + bob + frame, 'sky').set(o + 9, 6 + bob + frame, 'sky');
+  }
+  // 乱蓬蓬的头发和一撮呆毛
+  p.ellipse(o + 6.5, 2.5 + bob, 5, 2.6, 'bark');
+  p.rect(o + 1, 3 + bob, 2, 3, 'bark');
+  p.set(o + 10, 4 + bob, 'bark');
+  p.set(o + 7, -1 + bob + 1, 'bark').set(o + 8, -1 + bob, 'bark');
+  p.set(o + 4, 1 + bob, 'ochre').set(o + 5, 1 + bob, 'ochre');
+  p.outline('night');
+  return p.toImage();
+}
+
 const frames: Record<string, RGBAImage> = {
+  guyu_idle_0: guyu(0),
+  guyu_idle_1: guyu(1),
+  guyu_cry_0: guyu(0, 'cry'),
+  guyu_cry_1: guyu(1, 'cry'),
+  guyu_wave_0: guyu(0, 'wave'),
+  guyu_wave_1: guyu(1, 'wave'),
+  guyu_run_0: guyu(0, 'run'),
+  guyu_run_1: guyu(1, 'run'),
+  guyu_hug: guyu(0, 'hug'),
   haishen_idle_0: haishen(0, false),
   haishen_idle_1: haishen(1, false),
   haishen_wave_0: haishen(0, true),
