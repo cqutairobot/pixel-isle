@@ -8,7 +8,8 @@ import type { RespawnCause, SimEvent, DefeatCause } from './events';
 import { BTN, EMPTY_INPUT, isPressed, type InputFrame } from './input';
 import { ItemSet, type Item } from './items';
 import { standAt, type BlockKind, type EnemyKind, type ItemKind, type ParsedLevel } from './level';
-import { Player, type PlayerEnv } from './player';
+import { Goat, MOUNT_DERIVED, MOUNT_TUNING, newRide } from './mount';
+import { Player, PLAYER_H, PLAYER_W, type PlayerEnv } from './player';
 import { Props } from './props';
 import { Starfish, type StarfishBump } from './starfish';
 import { derive, RULES, type Derived, type Tuning } from './tuning';
@@ -56,6 +57,10 @@ export interface EndState {
   player?: [number, number];
   facing?: 1 | -1;
   flags?: string[];
+  /** false：结束时小满已经从咩铃身上下来了 */
+  mounted?: boolean;
+  /** 咩铃站到第 col 列、第 row 行（和主角一样按脚下那一格的上面一格算） */
+  goat?: { at: [number, number]; facing?: 1 | -1; mode?: 'idle' | 'home' };
 }
 
 export interface Stats {
@@ -69,6 +74,11 @@ export interface Stats {
 
 /** 交谈的范围：脚底中心水平距离 */
 const TALK_RANGE = 18;
+
+/** 站在第 col 列、第 row 行时脚底中心的位置 */
+function feetAt(col: number, row: number): { x: number; y: number } {
+  return { x: col * TILE + TILE / 2, y: row * TILE + TILE };
+}
 
 /**
  * 把关卡、主角、敌人、方块、道具、镜头组合起来；每次 step 前进一个逻辑帧（1/60 秒）。
@@ -89,6 +99,16 @@ export class World implements PlayerEnv {
   readonly starfish = new Starfish();
   /** 椰子树和掉下来的椰子 */
   readonly props = new Props();
+  /** 坐骑咩铃（第 3 关）；没有坐骑的关卡为 null */
+  readonly goat: Goat | null = null;
+  /** 羊圈（脚底中心）：死了以后咩铃在最近的羊圈里等 */
+  readonly pens: Array<{ x: number; y: number }> = [];
+  /** 小满站在咩铃旁边、可以按 ↑ 骑上（表现层据此显示"↑"） */
+  mountTarget = false;
+  /** 这次冲刺连续撞飞了几只 */
+  private chargeCombo = 0;
+  /** 骑着咩铃时交给主角控制器的环境：骑乘手感、冲刺撞碎东西 */
+  private readonly rideEnv: PlayerEnv;
   /** 终点铃门的判定区 */
   readonly goal: Rect | null = null;
   frame = 0;
@@ -150,6 +170,18 @@ export class World implements PlayerEnv {
     this.blocks = new BlockSet(level.grid);
     this.items = new ItemSet(level.grid);
     for (const f of [...level.flags, ...(options.flags ?? [])]) this.flags.add(f);
+    const world = this;
+    this.rideEnv = {
+      grid: level.grid,
+      tuning: MOUNT_TUNING,
+      derived: MOUNT_DERIVED,
+      autoRun: true,
+      get speedMul() {
+        return world.speedMul;
+      },
+      emit: (e) => this.emit(e),
+      smash: (x, y, w, h) => this.smashAt(x, y, w, h),
+    };
     this.build();
     this.settle();
     this.camera.snap(this.player);
@@ -224,6 +256,13 @@ export class World implements PlayerEnv {
         (this as { chimes: Chimes | null }).chimes = new Chimes(e.at[0], e.at[1], e.glass);
       } else if (e.type === 'coconutTree') {
         this.props.addTree(e.at[0], e.at[1], e.coconuts ?? 2, !!e.mango);
+      } else if (e.type === 'goat') {
+        const f = feetAt(e.at[0], e.at[1]);
+        // 还没救出来的时候冻在羊圈里
+        const mode = this.flags.has('mieling') ? 'idle' : 'trapped';
+        (this as { goat: Goat | null }).goat = new Goat(f.x, f.y, e.facing ?? 1, mode);
+      } else if (e.type === 'pen') {
+        this.pens.push(feetAt(e.at[0], e.at[1]));
       }
     }
   }
@@ -268,6 +307,14 @@ export class World implements PlayerEnv {
     this.camera.snap(this.player);
   }
 
+  /** 按脚底中心传送（骑着咩铃时碰撞盒更高，用脚底定位才不会卡进地里） */
+  teleportFeet(fx: number, fy: number): void {
+    this.player.resetFeet(fx, fy);
+    this.respawnTimer = 0;
+    this.settle();
+    this.camera.snap(this.player);
+  }
+
   /** 过场或阻塞触发处理完后调用 */
   resolveTrigger(end: EndState = {}): void {
     this.pendingTrigger = null;
@@ -281,12 +328,23 @@ export class World implements PlayerEnv {
   }
 
   private applyEnd(end: EndState): void {
+    if (end.mounted === false && this.player.ride) this.unride();
     if (end.player) {
-      const p = standAt(end.player[0], end.player[1]);
-      this.teleport(p.x, p.y);
+      const f = feetAt(end.player[0], end.player[1]);
+      this.teleportFeet(f.x, f.y);
     }
     if (end.facing) this.player.facing = end.facing;
     for (const f of end.flags ?? []) this.flags.add(f);
+    const g = this.goat;
+    if (end.goat && g) {
+      const f = feetAt(end.goat.at[0], end.goat.at[1]);
+      g.placeFeet(f.x, f.y);
+      g.onGround = true;
+      g.facing = end.goat.facing ?? g.facing;
+      g.setMode(end.goat.mode ?? 'idle');
+      g.lock = 0;
+      g.offscreen = 0;
+    }
   }
 
   step(input: InputFrame): void {
@@ -294,6 +352,7 @@ export class World implements PlayerEnv {
     if (this.waiting) return;
     this.player.body.snapshot();
     for (const e of this.enemies) e.body.snapshot();
+    this.goat?.body.snapshot();
     if (this.hitstop > 0) {
       this.hitstop--;
       this.heldPressed |= input.pressed;
@@ -321,12 +380,21 @@ export class World implements PlayerEnv {
     }
     const ctrl = this.stun > 0 ? EMPTY_INPUT : input;
     if (this.stun > 0) this.stun--;
-    p.step(ctrl, this);
+    p.step(ctrl, p.ride ? this.rideEnv : this);
+    if (p.dashBonk) this.chargeBonk(p.dashBonk);
 
     this.updateTalk(ctrl);
-    if (isPressed(ctrl, BTN.attack)) this.useEquipment(ctrl);
-    if (isPressed(ctrl, BTN.special))
-      this.emit({ type: 'equipSwitch', count: this.equipment.length });
+    // 骑着时：攻击键是冲撞，切换键是下来；徒步时：扔海星、切换装备、在咩铃旁边按 ↓ 摸摸她
+    if (isPressed(ctrl, BTN.attack)) {
+      if (p.ride) this.tryCharge();
+      else this.useEquipment(ctrl);
+    }
+    if (isPressed(ctrl, BTN.special)) {
+      if (p.ride) this.dismount();
+      else this.emit({ type: 'equipSwitch', count: this.equipment.length });
+    }
+    if (!p.ride && isPressed(ctrl, BTN.down)) this.tryPet();
+    this.stepGoat();
     if (p.headHit) this.hitBlockAbove();
     this.blocks.step();
     for (const lost of this.items.step()) {
@@ -354,7 +422,7 @@ export class World implements PlayerEnv {
     this.updateGoal();
     this.tickTimers();
     if (p.onGround) this.combo = 0;
-    this.camera.step(p, this.tuning);
+    this.camera.step(p, this.tuning, { lookAhead: p.ride ? RULES.rideLookAhead : undefined });
   }
 
   private stepDying(): void {
@@ -365,9 +433,11 @@ export class World implements PlayerEnv {
 
   private stepClear(): void {
     // 通关后主角不再受控制，自然减速落地；镜头继续跟着
-    this.player.step(EMPTY_INPUT, this);
+    const p = this.player;
+    p.step(EMPTY_INPUT, p.ride ? this.rideEnv : this);
+    if (p.ride) this.goat?.placeFeet(p.body.centerX, p.body.bottom);
     this.items.step();
-    this.camera.step(this.player, this.tuning);
+    this.camera.step(p, this.tuning, { lookAhead: p.ride ? RULES.rideLookAhead : undefined });
   }
 
   // —— 交谈 ——
@@ -387,10 +457,248 @@ export class World implements PlayerEnv {
       }
     }
     this.talkTarget = best;
+    // 站在咩铃旁边：按 ↑ 骑上（旁边有人可以交谈时先交谈）
+    const g = this.goat;
+    this.mountTarget =
+      !best &&
+      !p.ride &&
+      !!g &&
+      g.rideable &&
+      p.onGround &&
+      g.onGround &&
+      this.stun === 0 &&
+      Math.abs(g.body.centerX - b.centerX) <= RULES.mountRange &&
+      Math.abs(g.body.bottom - b.bottom) <= 6;
     if (best && isPressed(input, BTN.up)) {
       this.pendingTalk = best.id;
       this.emit({ type: 'talk', id: best.id });
+    } else if (this.mountTarget && isPressed(input, BTN.up)) {
+      this.mount('up');
     }
+  }
+
+  // —— 坐骑咩铃（docs/levels/1-3.md §3）——
+
+  /** 骑上咩铃：小满挪到她脚下，换成骑乘的碰撞盒（头顶没空间就骑不上） */
+  private mount(by: 'land' | 'up'): boolean {
+    const p = this.player;
+    const g = this.goat;
+    if (!g) return false;
+    const fx = g.body.centerX;
+    const fy = g.body.bottom;
+    if (!p.resize(RULES.rideW, RULES.rideH, fx, fy, this.grid)) return false;
+    p.ride = newRide();
+    p.vy = 0;
+    p.vx = by === 'land' ? p.vx * 0.5 : 0;
+    p.jumpCuttable = false;
+    p.buffer = 0;
+    g.setMode('ridden');
+    g.offscreen = 0;
+    this.chargeCombo = 0;
+    this.settle();
+    this.emit({ type: 'mount', x: fx, y: fy, by });
+    return true;
+  }
+
+  /** 从咩铃身上下来（只换回徒步的碰撞盒；咩铃放到小满脚下） */
+  private unride(): void {
+    const p = this.player;
+    const g = this.goat;
+    const fx = p.body.centerX;
+    const fy = p.body.bottom;
+    p.ride = null;
+    p.resize(PLAYER_W, PLAYER_H, fx, fy, this.grid);
+    this.chargeCombo = 0;
+    if (g) {
+      g.placeFeet(fx, fy);
+      g.facing = p.facing;
+      g.onGround = p.onGround;
+      g.setMode('idle');
+      g.lock = RULES.remountLock;
+      g.offscreen = 0;
+    }
+  }
+
+  /** 按切换键下来：小满往后上方一个后翻，咩铃留在原地等 */
+  private dismount(): void {
+    const p = this.player;
+    const r = p.ride;
+    if (!r || !p.onGround || r.windup > 0 || r.dash > 0) return;
+    const fx = p.body.centerX;
+    const fy = p.body.bottom;
+    this.unride();
+    p.bounce(RULES.dismountVy, false);
+    p.vx = -p.facing * RULES.dismountVx;
+    this.emit({ type: 'dismount', x: fx, y: fy, dir: -p.facing });
+  }
+
+  /**
+   * 骑着被撞下来：不扣心。小满被弹开（无敌），咩铃受惊蹦开；
+   * 在空中被撞下来时，咩铃直接跳回小满最后站稳的地方（不会掉进云海）。
+   */
+  private knockOff(fromX: number): void {
+    const p = this.player;
+    const g = this.goat!;
+    const dir = (Math.sign(p.body.centerX - fromX) || -p.facing) as 1 | -1;
+    const fx = p.body.centerX;
+    const fy = p.body.bottom;
+    const air = !p.onGround;
+    this.unride();
+    if (air) g.leap(fx, fy, p.safeFeetX, p.safeFeetY, 24);
+    else g.flee(dir);
+    this.combo = 0;
+    this.hitstop = Math.max(this.hitstop, RULES.hurtHitstop);
+    p.bounce(RULES.knockOffVy, false);
+    p.vx = dir * RULES.knockOffVx;
+    this.stun = RULES.hurtStunFrames;
+    this.iframes = RULES.hurtIframes;
+    this.emit({ type: 'knockOff', x: fx, y: fy, dir });
+    this.emit({ type: 'goatFlee', x: fx, y: fy });
+  }
+
+  /** 冲撞：只能在地上开始；蓄力、冲刺、冷却期间按了不算 */
+  private tryCharge(): void {
+    const p = this.player;
+    const r = p.ride!;
+    if (!p.onGround || r.windup > 0 || r.dash > 0 || r.cooldown > 0) return;
+    r.windup = RULES.chargeWindup;
+    this.chargeCombo = 0;
+    this.emit({ type: 'chargeWindup', x: p.body.centerX, y: p.body.bottom, dir: p.facing });
+  }
+
+  /** 冲刺撞上撞不碎的东西：铃砖会响；弹回来，晕一下 */
+  private chargeBonk(dir: number): void {
+    const p = this.player;
+    const r = p.ride;
+    if (!r) return;
+    const b = p.body;
+    const col = Math.floor((dir > 0 ? b.right : b.x - 1) / TILE);
+    for (let row = Math.floor(b.y / TILE); row <= Math.floor((b.bottom - 1) / TILE); row++) {
+      if (!this.blocks.at(col, row)) continue;
+      this.hitBlockAt(col, row, dir);
+      break;
+    }
+    r.dash = 0;
+    r.cooldown = RULES.chargeCooldown;
+    p.vx = -dir * RULES.chargeBonkVx;
+    p.bounce(RULES.chargeBonkVy, false);
+    this.stun = Math.max(this.stun, RULES.chargeBonkStun);
+    this.hitstop = Math.max(this.hitstop, RULES.chargeBonkHitstop);
+    this.chargeCombo = 0;
+    this.emit({ type: 'chargeBonk', x: dir > 0 ? b.right : b.x, y: b.centerY, dir });
+  }
+
+  /**
+   * 冲刺撞上实心格子时由主角控制器调用：矩形里能撞碎的（沙岩砖）都撞碎。
+   * 撞碎了东西返回 true，主角接着往前走。
+   */
+  private smashAt(x: number, y: number, w: number, h: number): boolean {
+    const dir = this.player.ride?.dashDir ?? 1;
+    let broke = false;
+    const c0 = Math.floor(x / TILE);
+    const c1 = Math.floor((x + w - 1) / TILE);
+    const r0 = Math.floor(y / TILE);
+    const r1 = Math.floor((y + h - 1) / TILE);
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        const blk = this.blocks.at(c, r);
+        if (!blk || blk.broken || blk.kind !== 'brick') continue;
+        this.hitBlockAt(c, r, dir);
+        broke = true;
+      }
+    }
+    return broke;
+  }
+
+  /** 徒步站在咩铃旁边按 ↓：摸摸她 */
+  private tryPet(): void {
+    const p = this.player;
+    const g = this.goat;
+    if (!g || !p.onGround || (g.mode !== 'idle' && g.mode !== 'home')) return;
+    if (Math.abs(g.body.centerX - p.body.centerX) > RULES.petRange) return;
+    if (Math.abs(g.body.bottom - p.body.bottom) > 4) return;
+    g.petTimer = 60;
+    g.facing = p.body.centerX >= g.body.centerX ? 1 : -1;
+    this.flags.add('petted');
+    this.emit({ type: 'pet', x: g.body.centerX, y: g.body.y });
+  }
+
+  /** 咩铃：被骑着时跟着小满；没人骑时自己动，落到她背上就骑上，走散了自己找回来 */
+  private stepGoat(): void {
+    const g = this.goat;
+    if (!g) return;
+    const p = this.player;
+    const pb = p.body;
+    if (p.ride) {
+      g.placeFeet(pb.centerX, pb.bottom);
+      g.facing = p.facing;
+      g.onGround = p.onGround;
+      return;
+    }
+    g.step(this.grid);
+    if (g.cue === 'calm') this.emit({ type: 'goatCalm', x: g.body.centerX, y: g.body.bottom });
+    if (g.cue === 'land') this.emit({ type: 'goatLand', x: g.body.centerX, y: g.body.bottom });
+    if (g.mode === 'idle' && g.onGround) g.facing = pb.centerX >= g.body.centerX ? 1 : -1;
+    // 从上面落到她背上：骑上
+    const gb = g.body;
+    if (
+      g.rideable &&
+      p.vy >= 0 &&
+      p.prevBottom <= gb.y + 4 &&
+      pb.bottom >= gb.y &&
+      pb.right > gb.x + 2 &&
+      pb.x < gb.right - 2 &&
+      this.stun === 0
+    ) {
+      this.mount('land');
+      return;
+    }
+    // 走散了：离开画面一会儿以后，从画面边上蹦回小满身后
+    if (g.mode !== 'idle') {
+      g.offscreen = 0;
+      return;
+    }
+    const cam = this.camera;
+    const onScreen =
+      gb.right > cam.x && gb.x < cam.x + cam.viewW && gb.bottom > cam.y && gb.y < cam.y + cam.viewH;
+    g.offscreen = onScreen ? 0 : g.offscreen + 1;
+    if (g.offscreen < RULES.goatReturnDelay || !p.onGround || this.respawnTimer > 0) return;
+    if (this.goatBlocked(gb.centerX, pb.centerX)) return;
+    const spot = this.landingSpot();
+    if (!spot) return;
+    const fromX = gb.centerX < pb.centerX ? cam.x - 16 : cam.x + cam.viewW + 16;
+    const fromY = spot.y - 3 * TILE;
+    g.leap(fromX, fromY, spot.x, spot.y, 32);
+    this.emit({ type: 'goatReturn', x: spot.x, y: spot.y, fromX, fromY });
+  }
+
+  /** 咩铃过不去：在 a 和 b 之间有关着的石门（第 3 关）；现在还没有石门 */
+  private goatBlocked(_a: number, _b: number): boolean {
+    return false;
+  }
+
+  /** 咩铃蹦回来时的落脚点：小满身后（再试身前）1–4 格，能站、头顶有骑乘的空间、在画面里 */
+  private landingSpot(): { x: number; y: number } | null {
+    const p = this.player;
+    const g = this.grid;
+    const cam = this.camera;
+    const fy0 = p.body.bottom;
+    const half = RULES.goatW / 2;
+    for (const side of [-p.facing, p.facing]) {
+      for (let k = 1; k <= 4; k++) {
+        const x = Math.round(p.body.centerX + side * k * TILE);
+        if (x - half < cam.x + 8 || x + half > cam.x + cam.viewW - 8) continue;
+        for (const dy of [0, -TILE, TILE, -2 * TILE, 2 * TILE]) {
+          const fy = fy0 + dy;
+          if (fy % TILE !== 0) continue;
+          if (!g.standableAt(x - half + 1, fy) || !g.standableAt(x + half - 2, fy)) continue;
+          if (g.solidAt(x - half, fy - RULES.rideH, RULES.goatW, RULES.rideH)) continue;
+          if (g.waterAt(x, fy - 2)) continue;
+          return { x, y: fy };
+        }
+      }
+    }
+    return null;
   }
 
   // —— 方块与道具 ——
@@ -797,6 +1105,18 @@ export class World implements PlayerEnv {
   private resolveCombat(input: InputFrame): void {
     const p = this.player;
     const pb = p.body;
+    // 咩铃冲刺：碰到的敌人都撞飞（连续撞飞时答谢递增）
+    if (p.ride && p.ride.dash > 0) {
+      const d = p.ride.dashDir;
+      const r = { x: d > 0 ? pb.x : pb.x - 4, y: pb.y, w: pb.w + 4, h: pb.h };
+      for (const e of this.enemies) {
+        if (!e.alive || !e.active) continue;
+        if (!rectsOverlap(r.x, r.y, r.w, r.h, e.hurtRect())) continue;
+        this.chargeCombo++;
+        this.defeat(e, 'charge', Math.min(this.chargeCombo, RULES.stompComboMax));
+        this.hitstop = Math.max(this.hitstop, RULES.chargeHitstop);
+      }
+    }
     // 同一步落在两只敌人身上时两只都算踩中，所以先记下"是否在下落"
     const falling = p.vy > 0;
     let stomped = false;
@@ -868,10 +1188,14 @@ export class World implements PlayerEnv {
     });
   }
 
-  /** 被敌人碰到：扣 1 心、停顿、击退、硬直、无敌；spike 是踩到了刺海胆 */
+  /** 被敌人碰到：扣 1 心、停顿、击退、硬直、无敌；spike 是踩到了刺海胆。骑着时只是被撞下来 */
   private damage(fromX: number, spike = false): void {
     const p = this.player;
     if (this.level.practice) return;
+    if (p.ride) {
+      this.knockOff(fromX);
+      return;
+    }
     this.hearts--;
     this.stats.damaged = true;
     this.combo = 0;
@@ -908,11 +1232,22 @@ export class World implements PlayerEnv {
     this.emit({ type: 'death', x: p.body.centerX, y: p.body.bottom });
   }
 
-  /** 心归零：回到检查点，满心复活；没打倒的敌人回到原位 */
+  /** 心归零：回到检查点，满心复活；没打倒的敌人回到原位；咩铃在最近的羊圈里等 */
   private respawnAtCheckpoint(): void {
     const p = this.player;
     this.recallStarfish();
+    if (p.ride) this.unride();
     p.reset(this.respawnPoint.x, this.respawnPoint.y);
+    const g = this.goat;
+    if (g && g.mode !== 'trapped' && g.mode !== 'home' && this.pens.length) {
+      const fx = p.body.centerX;
+      const pen = this.pens.reduce((a, c) => (Math.abs(c.x - fx) < Math.abs(a.x - fx) ? c : a));
+      g.placeFeet(pen.x, pen.y);
+      g.onGround = true;
+      g.setMode('idle');
+      g.lock = 0;
+      g.offscreen = 0;
+    }
     p.facing = 1;
     this.hearts = this.maxHearts;
     this.iframes = RULES.respawnIframes;
@@ -964,7 +1299,7 @@ export class World implements PlayerEnv {
   private respawnAtSafe(): void {
     const p = this.player;
     this.recallStarfish();
-    p.reset(p.lastSafeX, p.lastSafeY);
+    p.resetFeet(p.safeFeetX, p.safeFeetY);
     if (!this.level.practice) this.iframes = RULES.respawnIframes;
     this.settle();
     this.camera.snap(p);

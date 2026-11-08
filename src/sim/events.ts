@@ -1,7 +1,7 @@
 import type { BlockKind, EnemyKind, ItemKind } from './level';
 
-/** 敌人被打倒的原因：踩、被下方的砖顶飞、太阳果、回旋海星、掉下来的椰子 */
-export type DefeatCause = 'stomp' | 'bump' | 'sun' | 'starfish' | 'coconut';
+/** 敌人被打倒的原因：踩、被下方的砖顶飞、太阳果、回旋海星、掉下来的椰子、咩铃冲撞 */
+export type DefeatCause = 'stomp' | 'bump' | 'sun' | 'starfish' | 'coconut' | 'charge';
 
 /** 回到安全地面的原因 */
 export type RespawnCause = 'pit' | 'water' | 'death';
@@ -97,6 +97,27 @@ export type SimEvent =
   | { type: 'treeHit'; id: number; x: number; y: number; empty: boolean }
   | { type: 'coconutDrop'; id: number; x: number; y: number }
   | { type: 'coconutBounce'; id: number; x: number; y: number }
-  | { type: 'coconutBreak'; id: number; x: number; y: number };
+  | { type: 'coconutBreak'; id: number; x: number; y: number }
+  // —— 第 3 关：坐骑咩铃 ——
+  /** 骑上：from 是怎么骑上的（落到背上 / 按 ↑） */
+  | { type: 'mount'; x: number; y: number; by: 'land' | 'up' }
+  /** 按切换键下来（后翻） */
+  | { type: 'dismount'; x: number; y: number; dir: number }
+  /** 骑着被撞下来（不扣心）；dir 是小满被弹开的方向 */
+  | { type: 'knockOff'; x: number; y: number; dir: number }
+  | { type: 'doubleJump'; x: number; y: number }
+  /** 冲撞：开始蓄力、开始冲刺、冲完 */
+  | { type: 'chargeWindup'; x: number; y: number; dir: number }
+  | { type: 'dash'; x: number; y: number; dir: number }
+  | { type: 'dashEnd'; x: number; y: number }
+  /** 冲刺撞上撞不碎的东西：弹回、晕 */
+  | { type: 'chargeBonk'; x: number; y: number; dir: number }
+  /** 咩铃：受惊蹦开、平静下来、从画面边上蹦回来、落地 */
+  | { type: 'goatFlee'; x: number; y: number }
+  | { type: 'goatCalm'; x: number; y: number }
+  | { type: 'goatReturn'; x: number; y: number; fromX: number; fromY: number }
+  | { type: 'goatLand'; x: number; y: number }
+  /** 摸摸咩铃 */
+  | { type: 'pet'; x: number; y: number };
 
 export type SimEventType = SimEvent['type'];

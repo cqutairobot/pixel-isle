@@ -234,4 +234,43 @@ export const RULES = {
   coconutBounces: 2,
   coconutRestitution: 0.4,
   coconutRollDecel: 120,
+  /**
+   * 坐骑咩铃（docs/levels/1-3.md §3）：骑乘时的碰撞盒、二段跳的次数和高度（格）。
+   * 走、跑、第一跳的手感在 src/sim/mount.ts 的 MOUNT_TUNING 里。
+   */
+  rideW: 14,
+  rideH: 24,
+  rideAirJumps: 1,
+  airJumpTiles: 3.5,
+  /** 冲撞：蓄力帧、冲刺帧、冲刺速度、冲完的冷却、冲撞跳后空中回落到正常速度的减速度 */
+  chargeWindup: 9,
+  chargeFrames: 30,
+  chargeSpeed: 330,
+  chargeCooldown: 12,
+  chargeAirDecel: 600,
+  /** 冲撞撞飞敌人的停顿；撞到撞不碎的东西：弹回的速度、晕的帧数、停顿 */
+  chargeHitstop: 2,
+  chargeBonkVx: 120,
+  chargeBonkVy: 150,
+  chargeBonkStun: 18,
+  chargeBonkHitstop: 4,
+  /** 下来：后翻的初速（要落到咩铃身后、不压在她背上）；下来以后多少帧内落到背上不算骑上（盖过整个后翻） */
+  dismountVy: 260,
+  dismountVx: 120,
+  remountLock: 30,
+  /** 被撞下来：弹开的速度 */
+  knockOffVx: 120,
+  knockOffVy: 200,
+  /** 骑上、摸摸的距离（脚底中心的水平距离） */
+  mountRange: 14,
+  petRange: 16,
+  /** 骑乘时镜头往前多看多少 */
+  rideLookAhead: 80,
+  /** 咩铃没人骑时：碰撞盒、受惊蹦开的速度和帧数、离开画面多少帧后自己找回来、蹦回来的帧数 */
+  goatW: 18,
+  goatH: 14,
+  goatFleeSpeed: 120,
+  goatFleeFrames: 45,
+  goatReturnDelay: 120,
+  goatLeapFrames: 30,
 } as const;

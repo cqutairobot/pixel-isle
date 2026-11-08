@@ -41,6 +41,12 @@ export const DEFAULT_CAMERA: CameraTuning = {
   peekDistance: 48,
 };
 
+/** 这一步镜头的额外要求 */
+export interface CameraStepOptions {
+  /** 移动时往前多看多少（骑着咩铃时用固定的大前瞻）；不写按走速、跑速算 */
+  lookAhead?: number;
+}
+
 /** 镜头逻辑放在 sim 里，保证回放时镜头也完全确定。x, y 是视野左上角（世界像素，可为小数）。 */
 export class SimCamera {
   x = 0;
@@ -76,7 +82,7 @@ export class SimCamera {
     this.refX.v = this.refY.v = this.refLook.v = this.refPeek.v = 0;
   }
 
-  step(player: Player, tuning: Tuning): void {
+  step(player: Player, tuning: Tuning, opts: CameraStepOptions = {}): void {
     const t = this.t;
     const b = player.body;
 
@@ -87,7 +93,8 @@ export class SimCamera {
     else if (px < this.focusX - half) this.focusX = px + half;
     if (Math.abs(player.vx) > 20) {
       const ratio = player.speedRatio(tuning);
-      this.lookTarget = player.facing * (t.lookAhead + (t.lookAheadRun - t.lookAhead) * ratio);
+      this.lookTarget =
+        player.facing * (opts.lookAhead ?? t.lookAhead + (t.lookAheadRun - t.lookAhead) * ratio);
     }
     this.look = smoothDamp(this.look, this.lookTarget, this.refLook, t.lookSmooth, DT);
     const targetX = this.clampX(this.focusX + this.look - this.viewW / 2);

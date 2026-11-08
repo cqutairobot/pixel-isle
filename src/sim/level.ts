@@ -47,7 +47,14 @@ export type EntityDef =
   /** 指定某一格的海玻璃编号（这一格可以是海玻璃 g，也可以是一块砖，砖里就装这枚海玻璃） */
   | { type: 'glass'; at: [number, number]; index: number }
   /** 风铃架：at 是木架左上角所在的格子；按顺序碰响后掉出编号为 glass 的海玻璃 */
-  | { type: 'chimes'; at: [number, number]; glass: number };
+  | { type: 'chimes'; at: [number, number]; glass: number }
+  /**
+   * 坐骑咩铃（第 3 关）：at 是她脚下那一格的上面一格（和 NPC 一样）。
+   * 世界没有 mieling 旗标时，她被冻在羊圈里（trapped）。
+   */
+  | { type: 'goat'; at: [number, number]; facing?: 1 | -1 }
+  /** 羊圈：死了以后咩铃在离复活点最近的羊圈里等。at 同上 */
+  | { type: 'pen'; at: [number, number] };
 
 export interface LevelDef {
   id: string;

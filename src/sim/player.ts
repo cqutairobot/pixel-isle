@@ -1,10 +1,11 @@
 import { Body } from './body';
-import { DT } from './constants';
+import { DT, TILE } from './constants';
 import type { SimEvent } from './events';
 import type { Grid } from './grid';
 import { BTN, isHeld, isPressed, type InputFrame } from './input';
 import { approach, clamp01 } from './math';
-import type { Derived, Tuning } from './tuning';
+import type { RideState } from './mount';
+import { RULES, type Derived, type Tuning } from './tuning';
 
 export const PLAYER_W = 10;
 export const PLAYER_H = 14;
@@ -20,6 +21,11 @@ export interface PlayerEnv {
   /** 走速和跑速的倍数（太阳果期间大于 1），不写就是 1 */
   speedMul?: number;
   emit(e: SimEvent): void;
+  /**
+   * 骑着咩铃冲刺时撞上实心格子：能撞碎的（裂岩、沙岩砖）就撞碎并返回 true，
+   * 移动接着往前；撞不碎的返回 false（由世界处理弹回）。
+   */
+  smash?(x: number, y: number, w: number, h: number): boolean;
 }
 
 /** 主角控制器。所有手感规则见 PLAN.md §6.2–6.4。 */
@@ -50,20 +56,24 @@ export class Player {
   groundFrames = 0;
   /** 本次腾空到过的最高点（脚底 y），用来算下落距离 */
   peakBottom: number;
-  /** 最近一次稳稳站着的位置，掉坑后回到这里 */
-  lastSafeX: number;
-  lastSafeY: number;
+  /** 最近一次稳稳站着的位置（脚底中心），掉坑后回到这里；换碰撞盒（骑上、下来）也不会错位 */
+  safeFeetX: number;
+  safeFeetY: number;
   /** 这一步头顶撞到了东西（向上速度够快），世界据此判断顶到了哪块砖 */
   headHit = false;
   /** 这一步开始时脚底的 y，用来判断是不是"从上面踩下来" */
   prevBottom: number;
+  /** 骑着咩铃时的状态；徒步时为 null */
+  ride: RideState | null = null;
+  /** 这一步冲刺撞上了撞不碎的东西（撞的方向 ±1），世界据此弹回 */
+  dashBonk = 0;
 
   constructor(x: number, y: number) {
     this.body = new Body(x, y, PLAYER_W, PLAYER_H);
     this.peakBottom = this.body.bottom;
     this.prevBottom = this.body.bottom;
-    this.lastSafeX = x;
-    this.lastSafeY = y;
+    this.safeFeetX = this.body.centerX;
+    this.safeFeetY = this.body.bottom;
   }
 
   /** 受伤判定（8×12，比碰撞盒小一圈） */
@@ -72,12 +82,36 @@ export class Player {
     return { x: b.x + 1, y: b.y + 2, w: b.w - 2, h: b.h - 2 };
   }
 
-  /** 踩中敌人后弹起；按住跳跃键时可以中途松开截短（和普通跳一样） */
+  /** 踩中敌人后弹起；按住跳跃键时可以中途松开截短（和普通跳一样）。骑着时二段跳也恢复 */
   bounce(vy: number, cuttable: boolean): void {
     this.vy = -vy;
     this.onGround = false;
     this.coyote = 0;
     this.jumpCuttable = cuttable;
+    if (this.ride) this.ride.airJumps = RULES.rideAirJumps;
+  }
+
+  /**
+   * 换碰撞盒（骑上、下来），脚底中心放到 (fx, fy)。新位置和实心格子重叠时不换，返回 false。
+   * 不留插值痕迹（直接放过去）。
+   */
+  resize(w: number, h: number, fx: number, fy: number, grid: Grid): boolean {
+    const x = Math.round(fx - w / 2);
+    const y = Math.round(fy) - h;
+    if (grid.solidAt(x, y, w, h)) return false;
+    const b = this.body;
+    b.w = w;
+    b.h = h;
+    b.place(x, y);
+    this.prevBottom = b.bottom;
+    this.peakBottom = b.bottom;
+    return true;
+  }
+
+  /** 按脚底中心传送 */
+  resetFeet(fx: number, fy: number): void {
+    const b = this.body;
+    this.reset(Math.round(fx - b.w / 2), Math.round(fy) - b.h);
   }
 
   /** 传送到 (x, y)，清空所有运动状态 */
@@ -99,6 +133,14 @@ export class Player {
     this.peakBottom = b.bottom;
     this.prevBottom = b.bottom;
     this.headHit = false;
+    this.dashBonk = 0;
+    const r = this.ride;
+    if (r) {
+      r.windup = 0;
+      r.dash = 0;
+      r.cooldown = 0;
+      r.airJumps = RULES.rideAirJumps;
+    }
   }
 
   /** 水平速度在走速与跑速之间的比例（0–1），镜头与动画会用到 */
@@ -113,6 +155,26 @@ export class Player {
     const b = this.body;
     this.prevBottom = b.bottom;
     this.headHit = false;
+    this.dashBonk = 0;
+    const r = this.ride;
+    // 冲撞：蓄力结束就开始冲刺（朝蓄力结束时的朝向），冲完进入冷却
+    if (r) {
+      if (r.windup > 0) {
+        r.windup--;
+        if (r.windup === 0) {
+          r.dash = RULES.chargeFrames;
+          r.dashDir = this.facing;
+          env.emit({ type: 'dash', x: b.centerX, y: b.bottom, dir: r.dashDir });
+        }
+      } else if (r.dash > 0) {
+        r.dash--;
+        if (r.dash === 0) {
+          r.cooldown = RULES.chargeCooldown;
+          env.emit({ type: 'dashEnd', x: b.centerX, y: b.bottom });
+        }
+      } else if (r.cooldown > 0) r.cooldown--;
+    }
+    const dashing = !!r && r.dash > 0;
 
     const left = isHeld(input, BTN.left);
     const right = isHeld(input, BTN.right);
@@ -130,18 +192,26 @@ export class Player {
     if (isPressed(input, BTN.jump)) this.buffer = t.bufferFrames;
     if (this.dropTimer > 0) this.dropTimer--;
 
-    // 地面姿态
-    this.crouching = this.onGround && down;
+    // 地面姿态（骑着时不蹲）
+    this.crouching = this.onGround && down && !r;
     this.lookingUp = this.onGround && up && !down && Math.abs(this.vx) < 10;
     this.crouchFrames = this.crouching ? this.crouchFrames + 1 : 0;
     this.lookUpFrames = this.lookingUp ? this.lookUpFrames + 1 : 0;
-    if (dir !== 0) this.facing = dir > 0 ? 1 : -1;
+    // 冲刺中不能转身
+    if (dir !== 0 && !dashing) this.facing = dir > 0 ? 1 : -1;
     const moveDir = this.crouching ? 0 : dir;
 
-    // 起跳 / 下穿
+    // 起跳 / 下穿 / 二段跳。蓄力时先不跳：按下的跳跃留在缓冲里，冲刺一开始就跳（冲撞跳）
     let jumped = false;
     let dropped = false;
-    if (this.buffer > 0) {
+    if (r && r.windup > 0) {
+      // 等蓄力结束
+    } else if (r && !this.onGround && this.coyote === 0 && isPressed(input, BTN.jump)) {
+      if (r.airJumps > 0) {
+        this.doAirJump(env);
+        jumped = true;
+      }
+    } else if (this.buffer > 0) {
       if (this.onGround && down && this.onOneWayOnly(g)) {
         this.dropTimer = 12;
         this.buffer = 0;
@@ -166,6 +236,7 @@ export class Player {
     // 急停判定用进入这一步时的速度
     const vxOld = this.vx;
     const skidNow =
+      !(r && (r.windup > 0 || dashing)) &&
       this.onGround &&
       moveDir !== 0 &&
       vxOld !== 0 &&
@@ -190,10 +261,17 @@ export class Player {
     const dx = ((vxOld + this.vx) / 2) * DT;
     const dy = ((vyOld + this.vy) / 2) * DT;
 
-    const blockedX = (x: number, y: number) => g.solidAt(x, y, b.w, b.h);
+    const blockedX = (x: number, y: number) => {
+      if (!g.solidAt(x, y, b.w, b.h)) return false;
+      // 冲刺：能撞碎的撞碎，接着往前
+      if (dashing && env.smash?.(x, y, b.w, b.h)) return g.solidAt(x, y, b.w, b.h);
+      return true;
+    };
     const hitX = b.moveX(dx, blockedX, (sign) => this.tryLedgeAssist(sign, env));
     if (hitX) {
-      if (Math.abs(this.vx) > 60) {
+      if (dashing && r) {
+        this.dashBonk = r.dashDir;
+      } else if (Math.abs(this.vx) > 60) {
         env.emit({
           type: 'wallBump',
           x: this.vx > 0 ? b.x + b.w : b.x,
@@ -261,9 +339,10 @@ export class Player {
       this.groundFrames++;
       this.airFrames = 0;
       this.peakBottom = b.bottom;
+      if (r) r.airJumps = RULES.rideAirJumps;
       if (this.supportedBothSides(g)) {
-        this.lastSafeX = b.x;
-        this.lastSafeY = b.y;
+        this.safeFeetX = b.centerX;
+        this.safeFeetY = b.bottom;
       }
     } else {
       this.airFrames++;
@@ -284,8 +363,33 @@ export class Player {
     env.emit({ type: 'jump', x: this.body.centerX, y: this.body.bottom, run });
   }
 
+  /** 骑着咩铃在空中再跳一次：从当时的位置再往上 airJumpTiles 格（可以松键截短） */
+  private doAirJump(env: PlayerEnv): void {
+    const r = this.ride!;
+    r.airJumps--;
+    this.vy = -Math.sqrt(2 * env.derived.gravity * RULES.airJumpTiles * TILE);
+    this.jumpCuttable = true;
+    this.buffer = 0;
+    env.emit({ type: 'doubleJump', x: this.body.centerX, y: this.body.bottom });
+  }
+
   private updateHorizontal(dir: number, t: Tuning, d: Derived, mul: number): void {
     const top = (this.running ? t.runSpeed : t.walkSpeed) * mul;
+    const r = this.ride;
+    if (r) {
+      // 蓄力：停下来；冲刺：速度固定（空中也是，这就是冲撞跳）
+      if (r.windup > 0) {
+        this.vx = approach(this.vx, 0, d.groundDecel * 2 * DT);
+        return;
+      }
+      if (r.dash > 0) {
+        this.vx = r.dashDir * RULES.chargeSpeed * mul;
+        return;
+      }
+      // 冲撞跳以后在空中超速：慢慢回落到正常速度
+      if (!this.onGround && Math.abs(this.vx) > top)
+        this.vx = approach(this.vx, Math.sign(this.vx) * top, RULES.chargeAirDecel * DT);
+    }
     let vx = this.vx;
     if (this.onGround) {
       if (dir !== 0) {
