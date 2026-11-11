@@ -89,6 +89,79 @@ export class Bot {
     this.waitUntil(() => this.p.onGround, max, d);
   }
 
+  // —— 坐骑咩铃（第 3 关）——
+
+  /** 骑着咩铃吗 */
+  get riding(): boolean {
+    return !!this.p.ride;
+  }
+
+  /** 走到咩铃旁边，按 ↑ 骑上；返回骑上了没有 */
+  mount(max = 900): boolean {
+    const w = this.world;
+    this.release();
+    for (let i = 0; i < max && !this.p.ride; i++) {
+      const g = w.goat;
+      if (!g) return false;
+      if (w.mountTarget && !(this.prevHeld & BTN.up)) {
+        this.step(BTN.up);
+        continue;
+      }
+      const dx = g.body.centerX - this.p.body.centerX;
+      this.step(Math.abs(dx) <= 4 ? 0 : dx > 0 ? BTN.right : BTN.left);
+    }
+    this.step(0);
+    return !!this.p.ride;
+  }
+
+  /** 按切换键从咩铃身上下来（往后上方一个后翻），等落地 */
+  dismount(): void {
+    if (this.prevHeld & BTN.special) this.step(0);
+    this.step(BTN.special);
+    this.waitUntil(() => this.p.onGround && !this.p.ride, 120);
+    this.step(0);
+  }
+
+  /**
+   * 冲撞：先朝 dir 按一帧方向键转身，再按攻击键蓄力、冲刺。冲刺期间按住 dir（冲刺本身不看方向键）；
+   * jumpAt ≥ 0 时在冲刺开始后第 jumpAt 帧起跳（冲撞跳），按住跳跃 jumpHold 帧。
+   * 冲完松手，等落地、冷却结束（被撞下来或掉下去也会结束）。
+   */
+  charge(dir: number, jumpAt = -1, jumpHold = 16): void {
+    const d = dir > 0 ? BTN.right : BTN.left;
+    const ride = () => this.p.ride;
+    this.release();
+    if (this.p.facing !== dir) this.step(d);
+    this.step(d | BTN.attack);
+    this.waitUntil(() => !ride() || ride()!.dash > 0, 20, d);
+    for (let i = 0; i < 60 && ride() && ride()!.dash > 0; i++) {
+      const jump = jumpAt >= 0 && i >= jumpAt && i < jumpAt + jumpHold;
+      this.step(d | (jump ? BTN.jump : 0));
+    }
+    this.waitUntil(
+      () => !ride() || (this.p.onGround && ride()!.cooldown === 0 && this.world.respawnTimer === 0),
+      180,
+    );
+  }
+
+  /** 走到回声铃旁边按 ↑ 敲响（第一次敲会触发过场"回声"，由 step 里的 resolveHeadless 套用结束状态） */
+  ringBell(max = 900): boolean {
+    const w = this.world;
+    const bell = w.bell;
+    if (!bell) return false;
+    this.release();
+    for (let i = 0; i < max && !w.flags.has('echo'); i++) {
+      if (w.bellTarget && !(this.prevHeld & BTN.up)) {
+        this.step(BTN.up);
+        continue;
+      }
+      const dx = bell.x - this.p.body.centerX;
+      this.step(Math.abs(dx) <= 4 ? 0 : dx > 0 ? BTN.right : BTN.left);
+    }
+    this.step(0);
+    return w.flags.has('echo');
+  }
+
   /** 脚下前方 ahead 像素处，往下 maxDrop 格以内有没有能站的地方 */
   private groundAhead(ahead: number, maxDrop: number): boolean {
     const g = this.world.grid;

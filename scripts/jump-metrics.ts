@@ -56,3 +56,88 @@ for (const id of Object.keys(PRESETS) as PresetId[]) {
       `滞空 走 ${walkHi.airtime} 帧 / 跑 ${runHi.airtime} 帧`,
   );
 }
+
+// —— 坐骑咩铃（第 3 关）——
+// 平地上骑着跑到满速再起跳。距离是从起跳到落回同一高度时碰撞盒走过的水平距离；
+// 二段跳、冲撞跳的起跳时机在一串帧数里搜索，取最远（或最高）的那次。
+
+function goatWorld(): World {
+  const cols = 500;
+  const rows: string[] = [];
+  for (let r = 0; r < 24; r++) {
+    if (r >= 22) rows.push('#'.repeat(cols));
+    else if (r === 21) rows.push('P' + '.'.repeat(cols - 1));
+    else rows.push('.'.repeat(cols));
+  }
+  const level = parseLevel({
+    id: 'g',
+    name: 'g',
+    chunks: [rows.join('\n')],
+    entities: [{ type: 'goat', at: [3, 21] }],
+  });
+  const w = new World(
+    level,
+    cloneTuning(PRESETS.A.tuning),
+    { autoRun: false, flags: ['mieling'] },
+    384,
+    216,
+  );
+  return w;
+}
+
+interface Leap {
+  height: number;
+  distance: number;
+}
+
+/**
+ * 骑上咩铃、往右跑到满速，然后：charge 时先冲撞，冲刺第 jumpAt 帧起跳，否则直接起跳；
+ * second ≥ 0 时起跳后第 second 帧松开、再按住跳跃（二段跳）。
+ */
+function goatLeap(charge: boolean, jumpAt: number, second: number): Leap {
+  const w = goatWorld();
+  let prev = 0;
+  const step = (held: number) => {
+    const f: InputFrame = { held, pressed: held & ~prev, released: prev & ~held };
+    prev = held;
+    w.step(f);
+  };
+  const p = w.player;
+  const g = w.goat!;
+  for (let i = 0; i < 3; i++) step(0);
+  w.teleportFeet(g.body.centerX - 4, g.body.bottom);
+  for (let i = 0; i < 3; i++) step(0);
+  step(BTN.up);
+  step(0);
+  if (!p.ride) throw new Error('骑不上咩铃');
+  for (let i = 0; i < 30; i++) step(BTN.right);
+  if (charge) {
+    step(BTN.right | BTN.attack);
+    for (let i = 0; i < 20 && p.ride.dash === 0; i++) step(BTN.right);
+    for (let i = 0; i < jumpAt; i++) step(BTN.right);
+  }
+  const x0 = p.body.x;
+  const base = p.body.bottom;
+  let minBottom = base;
+  for (let i = 0; i < 400; i++) {
+    let held = BTN.right;
+    if (second < 0 || i < second) held |= BTN.jump;
+    else if (i > second) held |= BTN.jump;
+    step(held);
+    minBottom = Math.min(minBottom, p.body.bottom);
+    if (i > 2 && p.onGround) break;
+  }
+  return { height: (base - minBottom) / TILE, distance: (p.body.x - x0) / TILE };
+}
+
+const best = (leaps: Leap[], key: keyof Leap) => leaps.reduce((a, b) => (b[key] > a[key] ? b : a));
+const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+const single = goatLeap(false, 0, -1);
+const doubles = range(8, 40).map((s) => goatLeap(false, 0, s));
+const charges = range(0, 29).map((j) => goatLeap(true, j, -1));
+const chargeDoubles = range(0, 29).flatMap((j) => range(12, 40).map((s) => goatLeap(true, j, s)));
+const fmt = (l: Leap) => `高 ${l.height.toFixed(2)} 格、远 ${l.distance.toFixed(2)} 格`;
+console.log(
+  `咩铃：一跳 ${fmt(single)}；二段跳 最高 ${fmt(best(doubles, 'height'))} / 最远 ${fmt(best(doubles, 'distance'))}；` +
+    `冲撞跳 最远 ${fmt(best(charges, 'distance'))}；冲撞跳接二段跳 最远 ${fmt(best(chargeDoubles, 'distance'))}`,
+);

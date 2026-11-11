@@ -156,6 +156,36 @@ describe('1-3 关卡校验', () => {
     expect(onTop(b)).toBe(true);
   });
 
+  it('A4：矮洞里的两块裂岩堵死了路，怎么跳（含二段跳）都过不去；冲撞撞得开，两块都要撞', () => {
+    const passed = (b: Box, col: number) => b.w.player.body.x >= col * TILE;
+    for (const [start, rock] of [
+      [58, 66],
+      [63, 66],
+      [74, 78],
+    ] as const) {
+      for (const double of [false, true])
+        for (const plan of plans(1, double)) {
+          const b = sandbox(start, 22, 1, true);
+          plan(b);
+          expect(passed(b, rock + 2), `从第 ${start} 列跳过第 ${rock} 列的裂岩`).toBe(false);
+          expect(b.w.blocks.at(rock, 19)!.broken).toBe(false);
+        }
+    }
+    // 冲撞：第一块撞碎了，第二块还挡着；再撞一次就出了洞
+    const b = sandbox(62, 22, 1, true);
+    b.d.step(BTN.right | BTN.attack);
+    b.d.run(60, BTN.right);
+    expect(b.w.blocks.at(66, 19)!.broken).toBe(true);
+    expect(b.w.blocks.at(78, 19)!.broken).toBe(false);
+    expect(passed(b, 80)).toBe(false);
+    b.d.run(60, BTN.right);
+    b.d.step(0);
+    b.d.step(BTN.right | BTN.attack);
+    b.d.run(90, BTN.right);
+    expect(b.w.blocks.at(78, 19)!.broken).toBe(true);
+    expect(passed(b, 80)).toBe(true);
+  });
+
   it('B1：10 格宽的缝一跳过不去（加上土狼时间也不行），二段跳过得去；下面是云海', () => {
     // 第一道缝：第 93–102 列，左岸到第 92 列，右边石柱从第 103 列开始
     for (let c = 93; c <= 102; c++) expect(g.get(c, 33)).toBe(T_WATER);
@@ -206,15 +236,13 @@ describe('1-3 关卡校验', () => {
   });
 
   it('海玻璃 ③：小洞只有裂岩一个口；跳撞不开，从石台上冲出去撞得开；撞开后跳进去拿，拿完还能接着往上爬', () => {
-    expect(world.blocks.at(206, 17)!.kind).toBe('rock');
-    expect(world.blocks.at(206, 18)!.kind).toBe('rock');
-    // 小洞（第 203–205 列、第 17–18 行）上下左都是崖石
+    for (const r of [16, 17, 18]) expect(world.blocks.at(206, r)!.kind).toBe('rock');
+    // 小洞（第 203–205 列、第 16–18 行）上下左都是崖石
     for (let c = 202; c <= 206; c++) {
-      expect(g.get(c, 16), `${c},16`).toBe(T_SOLID);
+      expect(g.get(c, 15), `${c},15`).toBe(T_SOLID);
       expect(g.get(c, 19), `${c},19`).toBe(T_SOLID);
     }
-    expect(g.get(202, 17)).toBe(T_SOLID);
-    expect(g.get(202, 18)).toBe(T_SOLID);
+    for (const r of [16, 17, 18]) expect(g.get(202, r)).toBe(T_SOLID);
     const broken = (b: Box) => b.w.blocks.at(206, 18)!.broken;
     // 普通的跳：从第一级石台（第 24 行）、第二级（第 20 行）、地面（第 28 行）朝左跳
     const spots: Array<[number, number]> = [

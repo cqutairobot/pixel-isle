@@ -6,6 +6,7 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { GLASS_COLORS } from '../src/art/items';
 import { skyGradient } from '../src/art/background';
+import { drawBackdrop, drawBoulder, drawGate } from '../src/art/cliff';
 import { allFrames } from '../src/art/sheets';
 import type { RGBAImage } from '../src/art/sprite';
 import { buildLevelTileset } from '../src/art/terrain';
@@ -15,7 +16,7 @@ import { LEVELS } from '../src/content/levels';
 import { CHIME_LAYOUT } from '../src/sim/chimes';
 import { TILE } from '../src/sim/constants';
 import { T_WATER } from '../src/sim/grid';
-import { parseLevel, themeAt } from '../src/sim/level';
+import { MAT_CLOUD, parseLevel, themeAt } from '../src/sim/level';
 import { decodeInputs, resolveHeadless, type Replay } from '../src/sim/replay';
 import { cloneTuning, PRESETS } from '../src/sim/tuning';
 import { World } from '../src/sim/world';
@@ -48,6 +49,12 @@ const sky = skyGradient(W, H, [
   ['skin2', 1],
 ]);
 full.blit(sky, 0, 0);
+// 背墙（回声洞、竖井这种围起来的地方），在装饰后面
+for (const e of level.entities)
+  if (e.type === 'backdrop') {
+    const [c, r, w, h] = e.rect;
+    full.blit(drawBackdrop(w, h, e.kind, c * 31 + r), c * TILE, r * TILE);
+  }
 // 装饰（在瓦片后面）
 const world = new World(level, cloneTuning(PRESETS.A.tuning), { autoRun: false }, 384, 216);
 const fronts: Array<() => void> = [];
@@ -87,9 +94,12 @@ const NPC: Record<string, string> = {
   adou: 'npc/adou_idle_0',
   bailu: 'npc/bailu_idle_0',
   daishu: 'npc/daishu_idle_0',
+  guyu: 'npc/guyu_idle_0',
+  guyu_gate: 'npc/guyu_idle_0',
 };
 for (const n of world.npcs) if (NPC[n.id]) put(NPC[n.id]!, n.x, n.y, 0.5, 1, 1, n.facing < 0);
 for (const e of world.enemies) {
+  if (e.kind === 'swallow') continue;
   if (e.kind === 'gull') put('enemy/gull_0', e.body.centerX, e.body.centerY, 0.5, 0.5, 1, true);
   else if (e.kind === 'urchinHang') put('enemy/urchin_hang', e.body.centerX, e.body.y - 2, 0.5, 0);
   else if (e.kind === 'urchin') put('enemy/urchin_0', e.body.centerX, e.body.bottom, 0.5, 1);
@@ -105,6 +115,7 @@ for (const e of world.enemies) {
     );
 }
 for (const b of world.blocks.list) {
+  if (b.kind === 'rock') continue;
   const name =
     b.kind === 'brick'
       ? 'block/brick'
@@ -129,12 +140,62 @@ for (const it of world.items.list) {
   put(name, it.body.centerX, it.body.bottom + 1, 0.5, 1);
 }
 put('hero/idle_0', level.spawn.x + 5, level.spawn.y + 14, 0.5, 1);
+// 第 3 关：裂岩（连在一起的一整块画成一块大石头）、冻住的石门、冰晶、回声铃、咩铃、崖燕（画在触发线右边 6 格）
+const rockCells = new Set(
+  world.blocks.list.filter((b) => b.kind === 'rock').map((b) => `${b.col},${b.row}`),
+);
+const seen = new Set<string>();
+for (const key of rockCells) {
+  if (seen.has(key)) continue;
+  const stack = [key];
+  seen.add(key);
+  let [c0, r0, c1, r1] = [Infinity, Infinity, -Infinity, -Infinity];
+  while (stack.length) {
+    const [c, r] = stack.pop()!.split(',').map(Number) as [number, number];
+    [c0, r0, c1, r1] = [Math.min(c0, c), Math.min(r0, r), Math.max(c1, c), Math.max(r1, r)];
+    for (const n of [`${c + 1},${r}`, `${c - 1},${r}`, `${c},${r + 1}`, `${c},${r - 1}`])
+      if (rockCells.has(n) && !seen.has(n)) {
+        seen.add(n);
+        stack.push(n);
+      }
+  }
+  full.blit(drawBoulder(c1 - c0 + 1, r1 - r0 + 1, (c0 * 7 + r0) % 5), c0 * TILE, r0 * TILE);
+}
+for (const gate of world.gates) {
+  const cs = gate.cells.map(([c]) => c);
+  const rs = gate.cells.map(([, r]) => r);
+  const c0 = Math.min(...cs);
+  const r0 = Math.min(...rs);
+  full.blit(
+    drawGate(Math.max(...cs) - c0 + 1, Math.max(...rs) - r0 + 1, !gate.open),
+    c0 * TILE,
+    r0 * TILE,
+  );
+}
+if (world.crystal) {
+  const r = world.crystal.rect;
+  put('cliff/crystal_0', r.x + r.w / 2, r.y + r.h, 0.5, 1);
+}
+if (world.bell) put('cliff/bell_0', world.bell.x, world.bell.y, 0.5, 1);
+if (world.goat) {
+  const gb = world.goat.body;
+  put('goat/idle_0', gb.centerX, gb.bottom, 0.5, 1, 1, world.goat.facing < 0);
+}
+for (const f of world.flocks)
+  f.ids.forEach((_, i) =>
+    put('enemy/swallow_0', f.rect.x + 6 * TILE + i * 20, f.ys[i]!, 0.5, 0, 1, f.from > 0),
+  );
 // 海水（半透明，盖在最上面）；椰林里的小溪偏绿
 for (let r = 0; r < g.rows; r++)
   for (let c = 0; c < g.cols; c++) {
     if (g.get(c, r) !== T_WATER) continue;
     const surface = g.get(c, r - 1) !== T_WATER;
-    const pre = themeAt(level, c) === 'grove' ? 'stream_' : '';
+    const pre =
+      level.material[r * g.cols + c] === MAT_CLOUD
+        ? 'cloud_'
+        : themeAt(level, c) === 'grove'
+          ? 'stream_'
+          : '';
     full.blit(waterSheet.frames[`${pre}${surface ? 'surface_0' : 'body'}`]!, c * TILE, r * TILE, {
       alpha: 0.85,
     });

@@ -7,6 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { encodeInputs, type Replay } from '../src/sim/replay';
 import { routeAny, routeFull } from '../tests/route/1-1';
 import { routeAny as routeAny12, routeFull as routeFull12 } from '../tests/route/1-2';
+import { routeAny as routeAny13, routeFull as routeFull13 } from '../tests/route/1-3';
 
 const routes: Array<[string, string, () => ReturnType<typeof routeAny>]> = [
   ['tests/replays/1-1-any.json', '一路往右通关（反应式跳台阶、跳坑、跳螃蟹）', routeAny],
@@ -20,6 +21,16 @@ const routes: Array<[string, string, () => ReturnType<typeof routeAny>]> = [
     'tests/replays/1-2-full.json',
     '全收集：岸边斜扔捞贝壳、满跳上鸥巢、海星钻树桩缝、起跳斜扔捞树冠外的海玻璃',
     routeFull12,
+  ],
+  [
+    'tests/replays/1-3-any.json',
+    '通关：踩碎冰晶救出咩铃，二段跳上崖坎、跳过云海的缝，冲撞矮洞里的裂岩和蟹群，下坐骑钻门缝敲回声铃，爬羊道，在山脊上冲撞接冲撞跳',
+    routeAny13,
+  ],
+  [
+    'tests/replays/1-3-full.json',
+    '全收集：羊肠小道两次二段跳、顶出隐藏铃砖钻进洞顶暗格、从第二级石台冲出去撞碎裂岩再跳进小洞',
+    routeFull13,
   ],
 ];
 

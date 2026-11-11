@@ -66,6 +66,8 @@ export class MapScene extends Phaser.Scene {
   private hop: Hop | null = null;
   /** 正在播放路径解锁动画（期间不能操作） */
   private revealing = false;
+  /** 有路径要解锁、动画还没开始（地图刚打开的那一小会儿）：同样不能操作，免得在路亮出来之前就跳过去 */
+  private revealQueued = false;
   private leaving = false;
   private time0 = 0;
   private chatter: Array<{ line: Line; t: number }> = [];
@@ -80,6 +82,7 @@ export class MapScene extends Phaser.Scene {
     this.save = loadSave();
     this.leaving = false;
     this.revealing = false;
+    this.revealQueued = false;
     this.hop = null;
     this.time0 = 0;
     this.chatter = [];
@@ -168,8 +171,10 @@ export class MapScene extends Phaser.Scene {
     audio.music.ambience('sea');
     if (this.ui.transition.covered) void this.ui.transition.reveal(0.7);
     else this.cameras.main.fadeIn(400, 26, 28, 44);
-    if (reveal.length) this.time.delayedCall(700, () => void this.revealPaths(reveal));
-    else this.afterReveal();
+    if (reveal.length) {
+      this.revealQueued = true;
+      this.time.delayedCall(700, () => void this.revealPaths(reveal));
+    } else this.afterReveal();
     (window as unknown as { __map: unknown }).__map = this;
   }
 
@@ -215,6 +220,7 @@ export class MapScene extends Phaser.Scene {
   /** 路径解锁：小圆点一个一个"啵"地出现，音一个比一个高；最后终点的铃铛亮起来 */
   private async revealPaths(ids: string[]): Promise<void> {
     this.revealing = true;
+    this.revealQueued = false;
     for (const to of ids) {
       const dots = this.dots.get(to) ?? [];
       for (let i = 0; i < dots.length; i++) {
@@ -387,7 +393,7 @@ export class MapScene extends Phaser.Scene {
     this.time0 += dt;
     const uiIn = this.devices.sampleUI();
     if (this.ui.modal) this.ui.modal.input(uiIn.pressed, uiIn.held);
-    else if (!this.leaving && !this.revealing && !this.hop) {
+    else if (!this.leaving && !this.revealing && !this.revealQueued && !this.hop) {
       if (uiIn.pressed & BTN.right) this.move(1);
       else if (uiIn.pressed & BTN.left) this.move(-1);
       else if (uiIn.pressed & (BTN.jump | BTN.confirm)) this.openCard();

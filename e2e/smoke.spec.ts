@@ -305,8 +305,9 @@ test('通关过 1-1 的存档：标题"继续" → 章节地图 → 跳到 1-2 �
   // 等通往 1-2 的路解锁完，再往右跳
   await page.waitForFunction(
     () => {
-      const m = (window as unknown as { __map?: { revealing: boolean } }).__map;
-      return !!m && !m.revealing;
+      const m = (window as unknown as { __map?: { revealing: boolean; revealQueued: boolean } })
+        .__map;
+      return !!m && !m.revealing && !m.revealQueued;
     },
     null,
     { timeout: 20_000 },
@@ -337,5 +338,84 @@ test('通关过 1-1 的存档：标题"继续" → 章节地图 → 跳到 1-2 �
     null,
     { timeout: 30_000 },
   );
+  expect(errors).toEqual([]);
+});
+
+test('第 3 关：跳过开场，踩碎冰晶救出咩铃（长按跳过），骑上，冲撞撞碎矮洞里的裂岩（不掉心），没有报错', async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.goto('/#1-3');
+  await page.waitForFunction(() => (window.__level?.world.frame ?? 0) > 20, null, {
+    timeout: 60_000,
+  });
+  type L13 = {
+    story: string | null;
+    world: {
+      flags: Set<string>;
+      hearts: number;
+      mountTarget: boolean;
+      player: { ride: unknown; body: { centerX: number } };
+      goat: { body: { centerX: number; bottom: number } } | null;
+      blocks: { at(c: number, r: number): { broken: boolean } | undefined };
+      teleportFeet(x: number, y: number): void;
+    };
+  };
+  // 往右走到第 22 列：开场「谷雨的请求」，长按 Esc 跳过
+  await page.keyboard.down('KeyD');
+  await page.waitForFunction(() => !!(window.__level as unknown as L13).story, null, {
+    timeout: 20_000,
+  });
+  await page.keyboard.up('KeyD');
+  await page.keyboard.down('Escape');
+  await page.waitForFunction(() => !(window.__level as unknown as L13).story, null, {
+    timeout: 20_000,
+  });
+  await page.keyboard.up('Escape');
+  // 放到冰晶正上方：落下来踩一下、弹起来再落下……踩够三下冰晶碎掉，过场「咩铃出圈」开始
+  await page.evaluate(() => {
+    (window.__level as unknown as L13).world.teleportFeet(31 * 16 + 8, 20 * 16);
+  });
+  await page.waitForFunction(() => !!(window.__level as unknown as L13).story, null, {
+    timeout: 20_000,
+  });
+  await page.keyboard.down('Escape');
+  await page.waitForFunction(
+    () => {
+      const l = window.__level as unknown as L13;
+      return l.world.flags.has('mieling') && !l.story;
+    },
+    null,
+    { timeout: 20_000 },
+  );
+  await page.keyboard.up('Escape');
+  // 站到咩铃身边按 W 骑上
+  await page.evaluate(() => {
+    const w = (window.__level as unknown as L13).world;
+    w.teleportFeet(w.goat!.body.centerX - 4, w.goat!.body.bottom);
+  });
+  await page.waitForFunction(() => (window.__level as unknown as L13).world.mountTarget, null, {
+    timeout: 5_000,
+  });
+  await page.keyboard.press('KeyW');
+  await page.waitForFunction(() => !!(window.__level as unknown as L13).world.player.ride, null, {
+    timeout: 5_000,
+  });
+  // 放到矮洞口（第 61 列），按住 D、按 J 冲撞：第 66 列的裂岩碎掉，不掉心
+  const hearts = await page.evaluate(() => (window.__level as unknown as L13).world.hearts);
+  await page.evaluate(() => {
+    (window.__level as unknown as L13).world.teleportFeet(61 * 16 + 8, 22 * 16);
+  });
+  await page.waitForTimeout(300);
+  await page.keyboard.down('KeyD');
+  await page.keyboard.press('KeyJ');
+  await page.waitForFunction(
+    () => !!(window.__level as unknown as L13).world.blocks.at(66, 19)?.broken,
+    null,
+    { timeout: 10_000 },
+  );
+  await page.keyboard.up('KeyD');
+  await page.screenshot({ path: 'test-results/level-1-3.png' });
+  expect(await page.evaluate(() => (window.__level as unknown as L13).world.hearts)).toBe(hearts);
   expect(errors).toEqual([]);
 });

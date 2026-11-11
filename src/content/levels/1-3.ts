@@ -60,11 +60,14 @@ for (const [c, r] of [
   [48, 20],
 ] as const)
   b.put(c, r, 's');
-// A4：崖坎上面两块裂岩，第二块后面躲着一只霜壳蟹；末尾沿栈道一级级走下来
+// A4：崖坎上的小路钻进一段 3 格高的矮洞（洞顶是一整块崖石），两块裂岩把洞堵死了：
+// 咩铃跳得再高也跳不过去，只能撞（第一次冲撞）。第二块后面躲着一只霜壳蟹，撞碎石头顺便撞飞它；
+// 出了洞沿栈道一级级走下来
+b.fill(60, 12, 84, 18, '^');
 boulder(66, 2, 3, GROUND - 6);
 b.put(70, GROUND - 8, 's');
 b.put(71, GROUND - 8, 's');
-b.put(74, GROUND - 7, 'k');
+b.put(82, GROUND - 7, 'k');
 boulder(78, 2, 3, GROUND - 6);
 b.row(GROUND - 3, 85, 87, '=');
 ground(85, 92);
@@ -110,11 +113,10 @@ b.put(196, 25, '?');
 b.put(197, 22, '?');
 b.fill(196, 17, 198, 19, '.');
 b.put(197, 19, 'g');
-// 海玻璃 ③：竖井左壁的一面裂岩后面藏着一个小洞（上下左都是崖石，只有裂岩这一个口）。
-// 站在第二级石台上朝左冲撞，冲出崖边撞碎裂岩；再从石台上跳进去拿
-b.fill(203, 17, 205, 18, '.');
-b.put(206, 17, 'R');
-b.put(206, 18, 'R');
+// 海玻璃 ③：竖井左壁的一面裂岩后面藏着一个小洞（3 格高，上下左都是崖石，只有裂岩这一个口）。
+// 站在第二级石台上朝左冲撞，冲出崖边撞碎裂岩；再从石台往上一跳就钻进去了
+b.fill(203, 16, 205, 18, '.');
+b.fill(206, 16, 206, 18, 'R');
 b.put(204, 18, 'g');
 // C2：羊道（第 207–220 列的竖井）：石台左右交替，每级高 4 格；最后一跳 9 格远、2 格高，要二段跳
 b.fill(221, RIDGE, COLS - 1, ROWS - 1, '^');
@@ -166,7 +168,6 @@ const decos: EntityDef[] = [
   { type: 'deco', kind: 'tuft', at: [36, 27] },
   { type: 'deco', kind: 'tuft_b', at: [50, 21] },
   { type: 'deco', kind: 'pine', at: [56, 21] },
-  { type: 'deco', kind: 'tuft', at: [72, 21] },
   // B
   { type: 'deco', kind: 'tuft', at: [104, 27] },
   { type: 'deco', kind: 'tuft_b', at: [119, 25] },
@@ -232,9 +233,10 @@ export const level13: LevelDef = {
     { type: 'swallows', rect: [168, 0, 2, 36], rows: [26, 26], from: 1 },
     { type: 'swallows', rect: [274, 0, 2, 36], rows: [9, 6], from: 1 },
     { type: 'swallows', rect: [295, 0, 2, 36], rows: [9, 6, 9], from: 1 },
-    // 回声洞（连着石门底下的缝和洞顶的两个暗格）、羊道竖井的背墙
+    // A4 的矮洞、回声洞（连着石门底下的缝和洞顶的两个暗格）、羊道竖井的背墙
+    { type: 'backdrop', kind: 'cave', rect: [60, 19, 25, 3] },
     { type: 'backdrop', kind: 'crevice', rect: [205, 10, 16, 18] },
-    { type: 'backdrop', kind: 'cave', rect: [188, 17, 19, 11] },
+    { type: 'backdrop', kind: 'cave', rect: [188, 16, 19, 12] },
     // 羊道：纵向镜头区域
     { type: 'cameraZone', rect: [205, 2, 17, 27] },
     // 过场：开场（谷雨的请求）、结尾（谷雨的谢意）；"咩铃出圈""回声"由冰晶、回声铃触发
