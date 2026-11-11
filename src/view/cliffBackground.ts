@@ -1,12 +1,16 @@
 import Phaser from 'phaser';
 import { clouds, seaBand, skyGradient } from '../art/background';
 import { cloudBank, stacks, windStreak } from '../art/cliffBackground';
+import { colorInt, type ColorName } from '../art/palette';
 import { VIEW_H, VIEW_W } from '../platform/display';
 import type { ParsedLevel } from '../sim/level';
 import { addImageTexture } from './textures';
 
 interface Layer {
   obj: Phaser.GameObjects.TileSprite;
+  /** 云海层下面接着的一整块底色：镜头爬高、云海层往下沉时，底下不会露出天空 */
+  under?: Phaser.GameObjects.Rectangle;
+  h: number;
   fx: number;
   fy: number;
   baseY: number;
@@ -46,10 +50,9 @@ export class CliffBackground {
         'cb-sky',
         skyGradient(VIEW_W, VIEW_H, [
           ['sky', 0],
-          ['sky', 0.3],
-          ['cloud', 0.62],
-          ['cream', 0.85],
-          ['cream', 1],
+          ['sky', 0.5],
+          ['cloud', 0.78],
+          ['white', 1],
         ]),
       );
       addImageTexture(scene, 'cb-clouds', clouds(640, 60, 31, 'white', 'cloud'));
@@ -89,20 +92,28 @@ export class CliffBackground {
       fy: number,
       depth: number,
       drift = 0,
+      under?: ColorName,
     ): void => {
       const obj = scene.add
         .tileSprite(0, baseY, VIEW_W + 2, h, key)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(depth);
-      this.layers.push({ obj, fx, fy, baseY, drift });
+      const rect = under
+        ? scene.add
+            .rectangle(0, baseY + h, VIEW_W + 2, VIEW_H, colorInt(under))
+            .setOrigin(0, 0)
+            .setScrollFactor(0)
+            .setDepth(depth)
+        : undefined;
+      this.layers.push({ obj, under: rect, h, fx, fy, baseY, drift });
     };
     tile('cb-clouds', 60, -40, 0.03, 0.35, -99, 3);
     tile('cb-sea', 24, 124, 0.05, 0.12, -98);
     tile('cb-far', 150, 6, 0.08, 0.16, -97);
-    tile('cb-bank-far', 90, 112, 0.12, 0.24, -96, 4);
+    tile('cb-bank-far', 90, 112, 0.12, 0.24, -96, 4, 'mist');
     tile('cb-mid', 200, -10, 0.2, 0.32, -95);
-    tile('cb-bank-near', 80, 150, 0.3, 0.42, -94, 9);
+    tile('cb-bank-near', 80, 150, 0.3, 0.42, -94, 9, 'cloud');
   }
 
   update(dt: number, camX: number, camY: number): void {
@@ -111,6 +122,7 @@ export class CliffBackground {
     for (const l of this.layers) {
       l.obj.tilePositionX = camX * l.fx - this.time * l.drift;
       l.obj.y = Math.round(l.baseY + dy * l.fy);
+      if (l.under) l.under.y = l.obj.y + l.h;
     }
     // 风线：每隔一会儿从左边飞进来一根
     this.spawnT -= dt;

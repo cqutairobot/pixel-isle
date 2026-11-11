@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { audio } from '../audio/engine';
 import { END_STATES } from '../content/cutscenes/endStates';
 import { ADOU_SOLVED } from '../content/dialog/1-1';
-import { EQUIPMENT, EQUIPMENT_IDS } from '../content/equipment';
+import { ECHO_GAG } from '../content/dialog/1-3';
+import { COMPANIONS, EQUIPMENT, EQUIPMENT_IDS } from '../content/equipment';
 import { mapUnlocked } from '../content/map';
 import { LEVEL_CONTENT, type LevelContent } from '../content/levelContent';
 import type { Line } from '../content/dialog/line';
@@ -153,8 +154,12 @@ export class LevelScene extends Phaser.Scene {
         autoRun: settings.autoRun,
         assist: settings.assist,
         foundGlass: this.save.levels[this.levelId]?.glass ?? [],
-        // 拿到过的装备（海星）一直带着；再玩 1-2 时不再重播开场
-        flags: [...this.save.equipment],
+        // 拿到过的装备（海星）一直带着；再玩 1-2 时不再重播开场；
+        // 这一关记进存档的剧情标记（例如救出过咩铃）也带上，看过的开场、结尾不再播放
+        flags: [
+          ...this.save.equipment,
+          ...(this.content.storyFlags ?? []).filter((f) => this.save.flags.includes(f)),
+        ],
       },
       VIEW_W,
       VIEW_H,
@@ -475,6 +480,15 @@ export class LevelScene extends Phaser.Scene {
         const hadEquip = w.equipment.length > 0;
         const end = END_STATES[id] ?? {};
         w.resolveTrigger(end);
+        // 记进存档的剧情标记
+        const story = (end.flags ?? []).filter((f) => this.content.storyFlags?.includes(f));
+        if (story.length) {
+          for (const f of story) setFlag(this.save, f);
+          writeSave(this.save);
+        }
+        if (id === 'rescue')
+          this.time.delayedCall(400, () => this.ui.keyHint.show('ride', this.scheme(), 6));
+        if (id === 'echo') this.time.delayedCall(700, () => this.hint('echoGlint'));
         // 拿到的装备记进存档
         const got = (end.flags ?? []).filter((f) => EQUIPMENT_IDS.includes(f));
         if (got.length) {
@@ -521,12 +535,15 @@ export class LevelScene extends Phaser.Scene {
       signal: (name) => this.onSignal(name),
       toast: (text) => this.ui.toast.show(text, 2.4),
       dialog: this.dialogSounds(),
+      hasFlag: (name) => this.world.flags.has(name),
       itemGet: (eid, at, done) => {
-        const info = EQUIPMENT[eid]!;
+        const companion = COMPANIONS[eid];
+        const info = companion ?? EQUIPMENT[eid]!;
         const cam = this.cameras.main;
         audio.music.jingle('itemGet', 'duck');
         const m = new ItemGet(this.ui.host, {
           name: info.name,
+          head: companion?.head,
           usage: info.usage[this.scheme()],
           frame: info.bigFrame,
           at: { x: at.x - cam.scrollX, y: at.y - cam.scrollY },
@@ -610,6 +627,10 @@ export class LevelScene extends Phaser.Scene {
     }
     if (name === 'echoReveal') {
       this.ents.echoReveal();
+      return;
+    }
+    if (name === 'gate:open') {
+      for (const cells of this.ents.openGates()) this.juice.gateFx(cells);
       return;
     }
     if (name === 'goat:hide' || name === 'goat:show') {
@@ -731,6 +752,7 @@ export class LevelScene extends Phaser.Scene {
         case 'trigger':
           if (e.id.startsWith('key:')) this.ui.keyHint.show(e.id.slice(4) as 'talk', this.scheme());
           else if (e.id.startsWith('hint:')) this.hint(e.id.slice(5));
+          else if (e.id === 'echo13') this.echoGag();
           break;
         case 'enemyActivate':
           if (!w.flags.has('huihui')) break;
@@ -897,6 +919,28 @@ export class LevelScene extends Phaser.Scene {
           this.ui.keyHint.done('move');
           this.hint(this.content.clearHint);
           break;
+      }
+    }
+  }
+
+  /** 回声崖的小玩笑：回回冲着山谷喊，回声从画面右边传回来，一声比一声远 */
+  private echoGag(): void {
+    for (const l of ECHO_GAG) {
+      if (l.who === 'huihui')
+        this.say(
+          l.text,
+          () =>
+            this.ents.huihuiPos ?? {
+              x: this.world.player.body.centerX,
+              y: this.world.player.body.y - 4,
+            },
+        );
+      else {
+        // 回声：贴着画面右边
+        this.say(l.text, () => {
+          const cam = this.cameras.main;
+          return { x: cam.scrollX + VIEW_W - 64, y: cam.scrollY + 60 };
+        });
       }
     }
   }

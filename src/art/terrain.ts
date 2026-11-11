@@ -896,15 +896,13 @@ export function drawCliffTile(mask: number, depth: number, variant: number): RGB
   ];
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++) set(x, y, depthColor(x + variant * 3, y, depth * 16 + y, bands));
-  // 岩层：每 5–6 px 一道，带一点起伏；全局 y 对齐，相邻格子能接上
-  for (let x = 0; x < 16; x++) {
-    for (let k = 0; k < 4; k++) {
-      const base = 3 + k * 5 + (depth % 2) * 2;
-      const y = base + ((x + variant * 4 + k * 3) % 11 < 4 ? 1 : 0);
-      if (y < 0 || y > 15) continue;
-      const deep = depth * 16 + y > 40;
-      set(x, y, deep ? 'night' : 'slate');
-      if (y > 0 && !deep && (x + k) % 3 !== 0) set(x, y - 1, 'mist');
+  // 岩层：每格两道平缓的层理（深色线、偶尔断开），线上方零星几点亮色
+  for (const base of [5, 12]) {
+    for (let x = 0; x < 16; x++) {
+      const y = base + ((x + variant * 5) % 9 < 3 ? 1 : 0);
+      if ((x + variant * 3 + base) % 13 === 0) continue;
+      set(x, y, depth * 16 + y > 44 ? 'night' : 'slate');
+      if ((x * 7 + variant + base) % 5 === 0 && depth * 16 + y < 40) set(x, y - 1, 'mist');
     }
   }
   // 小石子和裂缝

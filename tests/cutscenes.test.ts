@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PORTRAITS } from '../src/art/portraits';
 import { CUTSCENES } from '../src/content/cutscenes/1-1';
 import { CUTSCENES_12 } from '../src/content/cutscenes/1-2';
+import { CUTSCENES_13 } from '../src/content/cutscenes/1-3';
 import { END_STATES } from '../src/content/cutscenes/endStates';
 import {
   ADOU_SOLVED,
@@ -12,9 +13,17 @@ import {
   PROLOGUE,
 } from '../src/content/dialog/1-1';
 import { NPC_TALK_12, STARFISH_OPENING } from '../src/content/dialog/1-2';
+import {
+  GUYU_PLEA,
+  GUYU_THANKS,
+  GUYU_THANKS_PETTED,
+  MIELING_FREE,
+  NPC_TALK_13,
+} from '../src/content/dialog/1-3';
 import type { Line } from '../src/content/dialog/line';
 import { level11 } from '../src/content/levels/1-1';
 import { level12 } from '../src/content/levels/1-2';
+import { level13 } from '../src/content/levels/1-3';
 import { SPEAKERS } from '../src/content/speakers';
 import { Director, type DirectorHost } from '../src/scenes/cutscene/director';
 import { T_ONEWAY, T_SOLID } from '../src/sim/grid';
@@ -29,6 +38,11 @@ const ALL_LINES: Line[] = [
   ...PROLOGUE.flat(),
   ...Object.values(NPC_TALK_12).flatMap((n) => [...n.first, ...n.again, ...(n.after ?? [])]),
   ...STARFISH_OPENING.flat(),
+  ...Object.values(NPC_TALK_13).flatMap((n) => [...n.first, ...n.again, ...(n.after ?? [])]),
+  ...GUYU_PLEA.flat(),
+  ...MIELING_FREE.flat(),
+  ...GUYU_THANKS.flat(),
+  ...GUYU_THANKS_PETTED,
 ];
 
 /** 什么都接受的假对象：任何属性、任何调用都返回它自己（代替 Phaser 的场景和精灵） */
@@ -124,7 +138,37 @@ describe('第 1 关的剧情内容', () => {
     expect(level.grid.get(c, r + 1)).toBe(T_SOLID);
   });
 
-  for (const [id, script] of [...Object.entries(CUTSCENES), ...Object.entries(CUTSCENES_12)]) {
+  it('1-3：开场和结尾是阻塞触发（看过就不再播放）；出圈、回声由冰晶、回声铃触发；结束位置能站', () => {
+    const level = parseLevel(level13);
+    const blocking = level13.entities!.filter(
+      (e) => e.type === 'trigger' && e.blocking !== false,
+    ) as Array<{ id: string; unless?: string }>;
+    expect(blocking.map((t) => [t.id, t.unless])).toEqual([
+      ['guyu', 'mieling'],
+      ['thanks', 'thanks13'],
+    ]);
+    for (const id of ['guyu', 'rescue', 'echo', 'thanks']) {
+      expect(CUTSCENES_13[id], id).toBeDefined();
+      const end = END_STATES[id]!;
+      expect(end, id).toBeDefined();
+      for (const at of [end.player, end.goat?.at]) {
+        if (!at) continue;
+        const [c, r] = at;
+        const below = level.grid.get(c, r + 1);
+        expect(below === T_SOLID || below === T_ONEWAY, `${id} 脚下 ${c},${r}`).toBe(true);
+        expect(level.grid.get(c, r), `${id} 所在格`).not.toBe(T_SOLID);
+      }
+    }
+    expect(END_STATES.rescue!.flags).toContain('mieling');
+    expect(END_STATES.echo!.flags).toContain('echo');
+    expect(END_STATES.thanks!.mounted).toBe(false);
+  });
+
+  for (const [id, script] of [
+    ...Object.entries(CUTSCENES),
+    ...Object.entries(CUTSCENES_12),
+    ...Object.entries(CUTSCENES_13),
+  ]) {
     it(`过场「${id}」：一直看到结尾不会卡住`, async () => {
       const d = new Director(host(true));
       let done = false;

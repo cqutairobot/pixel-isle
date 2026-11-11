@@ -412,6 +412,69 @@ export function drawGate(cols: number, rows: number, frozen: boolean): RGBAImage
   return p.toImage();
 }
 
+/**
+ * 回声洞和羊道竖井的背墙（cols × rows 格，左上角为原点）：比崖石暗得多、对比也低，
+ * 前面的石台和崖壁才站得出来。
+ * - cave：洞里，几乎是黑的，几道暗色的层理；右边 12 px 渐渐透明，接上后面竖井的背墙。
+ * - crevice：竖井，深蓝灰，层理线上零星几点亮色，顶边参差不齐、描一道亮边。
+ */
+export function drawBackdrop(
+  cols: number,
+  rows: number,
+  kind: 'cave' | 'crevice',
+  seed: number,
+): RGBAImage {
+  const w = cols * 16;
+  const h = rows * 16;
+  const p = new Paint(w, h);
+  const r = rng(seed);
+  const cave = kind === 'cave';
+  const base: ColorName = cave ? 'ink' : 'night';
+  const line: ColorName = cave ? 'night' : 'ink';
+  // 顶边（洞的顶边藏在洞顶后面，平的就行）
+  const tops: number[] = [];
+  let t = 5;
+  for (let x = 0; x < w; x++) {
+    if (!cave && x % 3 === 0) t = Math.max(1, Math.min(10, t + Math.floor(r() * 5) - 2));
+    tops.push(cave ? 0 : t);
+  }
+  const fadeW = cave ? 12 : 0;
+  const keep = (x: number, y: number) =>
+    x < w - fadeW || ditherPick(x, y, (x - (w - fadeW)) / fadeW, 'ink', 'white') === 'ink';
+  for (let x = 0; x < w; x++) for (let y = tops[x]!; y < h; y++) if (keep(x, y)) p.set(x, y, base);
+  // 层理：每 12–16 px 一道平缓起伏的暗线，偶尔断开
+  for (let y0 = 8 + Math.floor(r() * 5); y0 < h - 3; y0 += 12 + Math.floor(r() * 5)) {
+    const ph = r() * 6;
+    for (let x = 0; x < w; x++) {
+      const y = y0 + Math.round(Math.sin(x * 0.07 + ph) * 1.5);
+      if (y <= tops[x]! + 1 || hash2(x >> 2, y0, seed) % 9 === 0 || !p.get(x, y)) continue;
+      p.set(x, y, line);
+      // 竖井的层理线上方零星几点亮色
+      if (!cave && hash2(x, y0, seed + 1) % 7 === 0 && p.get(x, y - 1)) p.set(x, y - 1, 'slate');
+    }
+  }
+  // 几道歪歪扭扭的裂缝（斜着走，免得和层理拼成砖墙）
+  for (let i = 0; i < (cols * rows) / 14; i++) {
+    let x = Math.floor(r() * w);
+    const y0 = Math.floor(r() * h);
+    const lean = r() < 0.5 ? -1 : 1;
+    const len = 6 + Math.floor(r() * 10);
+    for (let y = y0; y < y0 + len && y < h; y++) {
+      if (y <= (tops[x] ?? h) + 1 || !p.get(x, y)) continue;
+      p.set(x, y, cave ? 'night' : 'ink');
+      if (r() < 0.6) x += r() < 0.8 ? lean : -lean;
+    }
+  }
+  // 竖井顶边描一道亮边
+  if (!cave)
+    for (let x = 0; x < w; x++) {
+      p.set(x, tops[x]!, 'slate');
+      if (tops[x + 1] !== undefined && tops[x + 1]! < tops[x]!)
+        for (let y = tops[x + 1]!; y < tops[x]!; y++) p.set(x, y, 'slate');
+    }
+  return p.toImage();
+}
+
 const frames: Record<string, RGBAImage> = {
   crystal_0: crystal(0),
   crystal_1: crystal(1),

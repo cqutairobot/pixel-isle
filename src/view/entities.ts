@@ -249,6 +249,17 @@ export class EntityViews {
     }
   }
 
+  /** 过场里让石门开始升起（之后 sim 的 gateOpen 事件不会再从头演一遍）；返回开始升起的石门的格子 */
+  openGates(): Array<Array<[number, number]>> {
+    const out: Array<Array<[number, number]>> = [];
+    for (const g of this.gates) {
+      if (g.t >= 0) continue;
+      g.t = 0;
+      out.push(g.gate.cells);
+    }
+    return out;
+  }
+
   /** 回声扫过洞里：隐藏铃砖闪出淡淡的轮廓（只是提示） */
   echoReveal(): void {
     this.revealT = 1.4;
@@ -424,7 +435,8 @@ export class EntityViews {
           break;
         case 'gateOpen':
           for (const g of this.gates)
-            if (g.gate.cells === e.cells || g.gate.cells[0]?.[0] === e.cells[0]?.[0]) g.t = 0;
+            if (g.t < 0 && (g.gate.cells === e.cells || g.gate.cells[0]?.[0] === e.cells[0]?.[0]))
+              g.t = 0;
           break;
         case 'clear':
           this.gateSwing = 2.2;

@@ -64,13 +64,17 @@ describe('章节地图', () => {
     expect(stepNode(s, '1-2', -1)).toBe('1-1');
   });
 
-  it('通关 1-2：路通到 1-3，但 1-3 还在做（正在制作中）', () => {
+  it('通关 1-2：路通到 1-3，可以进；通关 1-3：路通到 1-4，但 1-4 还在做（正在制作中）', () => {
     const s = emptySave();
     recordClear(s, '1-1', 3000, 10, false);
     recordClear(s, '1-2', 5000, 20, false);
-    expect(nodeState(s, '1-3')).toBe('soon');
+    expect(nodeState(s, '1-3')).toBe('open');
     expect(nodeState(s, '1-4')).toBe('locked');
     expect(pathsToReveal(s)).toEqual(['1-2', '1-3']);
     expect(stepNode(s, '1-2', 1)).toBe('1-3');
+    recordClear(s, '1-3', 6000, 30, false);
+    expect(nodeState(s, '1-3')).toBe('cleared');
+    expect(nodeState(s, '1-4')).toBe('soon');
+    expect(stepNode(s, '1-3', 1)).toBe('1-4');
   });
 });

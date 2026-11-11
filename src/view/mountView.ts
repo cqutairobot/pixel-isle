@@ -109,6 +109,8 @@ export class MountView {
     s.setFrame(`goat/${frame}`)
       .setFlipX(facing < 0)
       .setPosition(Math.round(x), Math.round(y));
+    // 冻在羊圈里时画在栅栏后面，出来以后画在前面
+    s.setDepth(!ridden && g.mode === 'trapped' ? 8.3 : 8.5);
     if (this.hidden) s.setVisible(false);
     // 冲刺：身后留残影
     const r = p.ride;

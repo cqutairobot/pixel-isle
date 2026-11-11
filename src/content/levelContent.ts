@@ -2,8 +2,10 @@ import type { Director } from '../scenes/cutscene/director';
 import type { KeyHintId } from '../ui/keyHint';
 import { CUTSCENES } from './cutscenes/1-1';
 import { CUTSCENES_12 } from './cutscenes/1-2';
+import { CUTSCENES_13 } from './cutscenes/1-3';
 import { NPC_TALK } from './dialog/1-1';
 import { NPC_TALK_12 } from './dialog/1-2';
+import { NPC_TALK_13 } from './dialog/1-3';
 import type { Line } from './dialog/line';
 import { UI_TEXT } from './text';
 
@@ -24,6 +26,8 @@ export interface LevelContent {
   crabHint?: boolean;
   /** 碰到第几个检查点时回回说的话 */
   checkpointHints?: Record<number, string>;
+  /** 记进存档的剧情标记：再玩这一关时一开始就有（不再播放看过的开场、结尾） */
+  storyFlags?: string[];
 }
 
 export const LEVEL_CONTENT: Record<string, LevelContent> = {
@@ -44,5 +48,13 @@ export const LEVEL_CONTENT: Record<string, LevelContent> = {
     banner: UI_TEXT.levelTitle12,
     tallyTitle: UI_TEXT.tallyTitle12,
     clearHint: 'gate2',
+  },
+  '1-3': {
+    cutscenes: CUTSCENES_13,
+    talk: NPC_TALK_13,
+    banner: UI_TEXT.levelTitle13,
+    tallyTitle: UI_TEXT.tallyTitle13,
+    clearHint: 'bye3',
+    storyFlags: ['mieling', 'thanks13'],
   },
 };

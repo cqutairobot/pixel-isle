@@ -11,4 +11,23 @@ export const END_STATES: Record<string, EndState> = {
   bailu: { flags: ['metBailu'], player: [145, 13], facing: 1 },
   // 1-2 开场：白露把回旋海星借给小满，小满还站在原地（第 9 列）
   starfish: { flags: ['starfish'], player: [9, 27], facing: 1 },
+  // 1-3 开场：谷雨的请求（小满还站在原地）
+  guyu: {},
+  // 1-3 咩铃出圈：小满站在羊圈左边（第 29 列），咩铃在羊圈门口朝着她；谷雨去铃门那边等
+  rescue: {
+    flags: ['mieling'],
+    player: [29, 27],
+    facing: 1,
+    goat: { at: [31, 27], facing: -1 },
+  },
+  // 1-3 回声：石门打开，咩铃跑到回声铃旁边（第 197 列）
+  echo: { flags: ['echo'], goat: { at: [197, 27], facing: 1 } },
+  // 1-3 结尾：小满下来站在第 348 列，咩铃留在谷雨身边（不能再骑）
+  thanks: {
+    flags: ['thanks13'],
+    mounted: false,
+    player: [348, 9],
+    facing: 1,
+    goat: { at: [351, 9], facing: 1, mode: 'home' },
+  },
 };

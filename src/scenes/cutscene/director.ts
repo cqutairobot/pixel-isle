@@ -63,6 +63,8 @@ export interface DirectorHost {
    * 返回打开的界面（跳过过场时由导演直接关掉）。
    */
   itemGet(id: string, at: Point, done: () => void): Modal;
+  /** 世界里有没有某个剧情标记（例如摸过咩铃 petted） */
+  hasFlag?(name: string): boolean;
 }
 
 export interface SpawnOptions {
@@ -235,6 +237,11 @@ export class Director {
         done();
       });
     });
+  }
+
+  /** 世界里有没有某个剧情标记（过场根据它多说一两句） */
+  hasFlag(name: string): boolean {
+    return this.host.hasFlag?.(name) ?? false;
   }
 
   emote(who: string, kind: EmoteKind, life = 1.1): void {

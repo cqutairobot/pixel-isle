@@ -25,3 +25,18 @@ export const EQUIPMENT: Record<string, EquipmentInfo> = {
 
 /** 装备的编号也是世界里的剧情标记（World 看 flags 里有没有 starfish 决定能不能扔） */
 export const EQUIPMENT_IDS = Object.keys(EQUIPMENT);
+
+/** 新伙伴（坐骑）：获得演出和装备一样，横幅上写"新伙伴！"（docs/levels/1-3.md §4） */
+export const COMPANIONS: Record<string, EquipmentInfo & { head: string }> = {
+  mieling: {
+    id: 'mieling',
+    name: '咩铃',
+    head: '新伙伴！',
+    usage: {
+      wasd: '空中再按 K 二段跳 · 按 J 冲撞',
+      arrows: '空中再按 Z 二段跳 · 按 X 冲撞',
+      pad: '空中再按 A 二段跳 · 按 X 冲撞',
+    },
+    bigFrame: 'goat/big',
+  },
+};

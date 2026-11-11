@@ -11,6 +11,8 @@ import { PixelText } from './text/pixelText';
 export interface ItemGetOptions {
   /** 道具名（大字） */
   name: string;
+  /** 横幅最上面的一行（默认"得到了新装备！"；新伙伴是"新伙伴！"） */
+  head?: string;
   /** 一句用法 */
   usage: string;
   /** 道具的大图 */
@@ -111,7 +113,7 @@ export class ItemGet implements Modal {
     const h = BANNER_H;
     this.banner = s.add.container(Math.round((VIEW_W - w) / 2), VIEW_H + 4).setDepth(33);
     this.banner.add(s.add.image(0, 0, panelTexture(s, w, h, 'paper')).setOrigin(0, 0));
-    const head = new PixelText(s, 0, 0, UI_TEXT.itemGet, { color: 'ochre' });
+    const head = new PixelText(s, 0, 0, o.head ?? UI_TEXT.itemGet, { color: 'ochre' });
     head.setPosition(Math.round((w - head.width) / 2), 3);
     const name = new PixelText(s, 0, 0, o.name, { color: 'night' });
     name.root.setScale(2);

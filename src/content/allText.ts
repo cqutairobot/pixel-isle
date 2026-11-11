@@ -1,6 +1,7 @@
 import { allDialogText } from './dialog/1-1';
 import { allDialogText12 } from './dialog/1-2';
-import { EQUIPMENT } from './equipment';
+import { allDialogText13 } from './dialog/1-3';
+import { COMPANIONS, EQUIPMENT } from './equipment';
 import { MAP_NODES } from './map';
 import { LEVELS } from './levels';
 import { speakerNames } from './speakers';
@@ -22,11 +23,13 @@ export function allText(): string[] {
     ...Object.values(MAP_TEXT),
     ...MAP_NODES.map((n) => n.name),
     ...Object.values(EQUIPMENT).flatMap((e) => [e.name, ...Object.values(e.usage)]),
+    ...Object.values(COMPANIONS).flatMap((e) => [e.name, e.head, ...Object.values(e.usage)]),
     ...CONTROLS_TEXT,
     ...CREDITS.flat(),
     ...Object.values(LEVELS).map((l) => l.name),
     ...allDialogText(),
     ...allDialogText12(),
+    ...allDialogText13(),
     ...speakerNames(),
     ASCII,
     SYMBOLS,

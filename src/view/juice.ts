@@ -692,25 +692,10 @@ export class Juice {
               }),
             );
           break;
-        case 'gateOpen': {
-          this.sound.play('crystalBreak', { volume: 0.6, rate: 0.8 });
-          this.time(0.3, () => this.sound.play('gateRumble'));
-          this.shake.add(0.2);
-          const xs = e.cells.map(([c]) => c * TILE + TILE / 2);
-          const bottom = Math.max(...e.cells.map(([, r]) => r)) * TILE + TILE;
-          for (const x of xs)
-            for (let i = 0; i < 2; i++)
-              this.particles.spawn({
-                x: x + rnd(-6, 6),
-                y: bottom - rnd(2, 12),
-                vx: rnd(-80, 80),
-                vy: rnd(-160, -60),
-                gravity: 600,
-                life: 0.6,
-                frames: [`cliff/shard_${i % 2}`],
-              });
+        case 'gateOpen':
+          // 过场里已经演过了（gateFx），这里不再重复
+          if (!this.gateFxDone) this.gateFx(e.cells);
           break;
-        }
         case 'swallowWarn':
           this.sound.play('swallowWarn', { pan: e.from * 0.6 });
           this.time(0.18, () => this.sound.play('swallowWarn', { pan: e.from * 0.6, rate: 1.12 }));
@@ -738,6 +723,29 @@ export class Juice {
           break;
       }
     }
+  }
+
+  private gateFxDone = false;
+
+  /** 石门上的冰碎掉、石门轰隆隆升起 */
+  gateFx(cells: Array<[number, number]>): void {
+    this.gateFxDone = true;
+    this.sound.play('crystalBreak', { volume: 0.6, rate: 0.8 });
+    this.time(0.3, () => this.sound.play('gateRumble'));
+    this.shake.add(0.2);
+    const xs = cells.map(([c]) => c * TILE + TILE / 2);
+    const bottom = Math.max(...cells.map(([, r]) => r)) * TILE + TILE;
+    for (const x of xs)
+      for (let i = 0; i < 2; i++)
+        this.particles.spawn({
+          x: x + rnd(-6, 6),
+          y: bottom - rnd(2, 12),
+          vx: rnd(-80, 80),
+          vy: rnd(-160, -60),
+          gravity: 600,
+          life: 0.6,
+          frames: [`cliff/shard_${i % 2}`],
+        });
   }
 
   /** 咩铃落一次蹄子：蹄子"哒"一声，脖子上的铃叮当一下（左右两下音高错开） */

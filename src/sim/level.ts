@@ -37,6 +37,8 @@ export type EntityDef =
   /** NPC；if：有这个剧情标记时才出现，unless：有这个剧情标记时就不在了 */
   | { type: 'npc'; id: string; at: [number, number]; facing?: 1 | -1; if?: string; unless?: string }
   | { type: 'deco'; kind: string; at: [number, number]; flip?: boolean; front?: boolean }
+  /** 背墙（只是画面）：回声洞、竖井这种围起来的地方，背后画一面暗色的岩壁，rect 是格子 */
+  | { type: 'backdrop'; kind: 'cave' | 'crevice'; rect: [number, number, number, number] }
   /**
    * 触发区：blocking 为 true 时世界会停下等过场或对话结束。
    * unless：世界已经有这个剧情标记时，触发区一开始就算触发过（例如拿到海星后不再重播开场）

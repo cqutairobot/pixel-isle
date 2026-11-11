@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { drawBackdrop } from '../art/cliff';
 import { waterSheet } from '../art/water';
 import { buildLevelTileset } from '../art/terrain';
 import { TILE } from '../sim/constants';
@@ -19,6 +20,8 @@ export const DECO: Record<
     dy?: number;
     /** 前景：画在最前面，有人走到后面时变透明 */
     front?: boolean;
+    /** 固定的透明度（薄雾） */
+    alpha?: number;
   }
 > = {
   house_home: { frames: ['deco/house_home'] },
@@ -57,6 +60,21 @@ export const DECO: Record<
   cart: { frames: ['grove/cart'], ox: 0.5, depth: -4 },
   front_hang: { frames: ['grove/front_hang'], oy: 0, depth: 42, front: true },
   front_rise: { frames: ['grove/front_rise'], depth: 42, front: true },
+  // —— 第 3 关：回声崖 ——
+  // 羊圈的栅栏：冻在里面的咩铃画在它后面，出来以后画在它前面（见 MountView）
+  pen: { frames: ['cliff/pen'], depth: 8.4 },
+  pen_old: { frames: ['cliff/pen_old'], depth: -4 },
+  pine: { frames: ['cliff/pine'], depth: -6 },
+  sign: { frames: ['cliff/sign'], depth: -5 },
+  tuft: { frames: ['cliff/tuft_0'], depth: 1 },
+  tuft_b: { frames: ['cliff/tuft_1'], depth: 1 },
+  rail: { frames: ['cliff/rail'], depth: -4 },
+  chimes: { frames: ['cliff/chimes'], oy: 0, depth: -4 },
+  hoof: { frames: ['cliff/hoof'], depth: 1, dy: 0 },
+  wool: { frames: ['cliff/wool'], oy: 0, depth: 1 },
+  swallow_nest: { frames: ['cliff/nest'], depth: -4 },
+  mist: { frames: ['cliff/mist_0'], depth: 42, alpha: 0.45 },
+  mist_b: { frames: ['cliff/mist_1'], depth: 42, alpha: 0.45 },
 };
 
 /** 前景遮挡：有人在后面时淡到这个透明度 */
@@ -104,7 +122,10 @@ export class LevelView {
     const layer = map.createLayer(0, tileset, 0, 0) as Phaser.Tilemaps.TilemapLayer;
     layer.setDepth(0).setSkipCull(true);
     this.buildWater();
-    for (const e of level.entities) if (e.type === 'deco') this.addDeco(e);
+    for (const e of level.entities) {
+      if (e.type === 'deco') this.addDeco(e);
+      else if (e.type === 'backdrop') this.addBackdrop(e);
+    }
   }
 
   private buildWater(): void {
@@ -177,6 +198,7 @@ export class LevelView {
       .image(x, y, ATLAS, frames[0])
       .setOrigin(d.ox ?? 0, oy)
       .setDepth(d.depth ?? -8)
+      .setAlpha(d.alpha ?? 1)
       .setFlipX(!!e.flip);
     this.decos.push({ kind: e.kind, img });
     if (d.front || e.front) this.fronts.push(img.setDepth(42));
@@ -184,6 +206,18 @@ export class LevelView {
       this.anims.push({ img, frames, fps: d.fps ?? 2, phase: (e.at[0] * 0.37) % 1 });
     if (e.kind === 'boat' || e.kind === 'post')
       this.bobs.push({ img, baseY: y, phase: e.at[0] * 0.7 });
+  }
+
+  /** 背墙：在视差背景前面、所有装饰后面；洞比竖井靠前一层，好让洞口那几列渐变透出竖井的背墙 */
+  private addBackdrop(e: Extract<EntityDef, { type: 'backdrop' }>): void {
+    const [c, r, w, h] = e.rect;
+    const key = `backdrop-${this.level.id}-${c}-${r}`;
+    if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
+    addImageTexture(this.scene, key, drawBackdrop(w, h, e.kind, c * 31 + r));
+    this.scene.add
+      .image(c * TILE, r * TILE, key)
+      .setOrigin(0, 0)
+      .setDepth(e.kind === 'cave' ? -19 : -20);
   }
 
   /** 从 col 开始往右 len 格，沿地面（从 row 往下找到的第一个能站的面）画一串冰霜脚印，越往后越淡 */

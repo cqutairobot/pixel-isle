@@ -132,7 +132,10 @@ function mushrooms(): RGBAImage {
   return p.toImage();
 }
 
-/** 垂藤：从上往下挂，弯弯曲曲的藤，左右交替长着小叶子 */
+/**
+ * 垂藤：从上往下挂，弯弯曲曲的藤，左右交替长着小叶子。
+ * 只是背景装饰（不能爬），所以颜色压暗、挂得短，离地面远远的，不像能抓的绳子。
+ */
 function vines(len: number, seed: number): RGBAImage {
   const p = new Paint(9, len);
   const r = rng(seed);
@@ -140,16 +143,15 @@ function vines(len: number, seed: number): RGBAImage {
   for (let y = 0; y < len; y++) {
     if (y % 5 === 4) x += r() < 0.5 ? -1 : 1;
     x = Math.max(2, Math.min(6, x));
-    p.set(x, y, 'leaf1');
+    p.set(x, y, 'pine');
     if (y % 6 === 2 && y < len - 2) {
       const d = (y / 6) % 2 < 1 ? -1 : 1;
-      p.set(x + d, y, 'leaf2')
-        .set(x + d * 2, y + 1, 'leaf2')
-        .set(x + d, y + 1, 'leaf1');
+      p.set(x + d, y, 'leaf1')
+        .set(x + d * 2, y + 1, 'leaf1')
+        .set(x + d, y + 1, 'pine');
     }
   }
-  p.set(x, len - 1, 'leaf2');
-  p.outline('pine');
+  p.set(x, len - 1, 'leaf1');
   return p.toImage();
 }
 
@@ -415,8 +417,8 @@ const frames: Record<string, RGBAImage> = {
   fern: fern(3, 26, 14),
   fern_b: fern(8, 20, 11),
   mushrooms: mushrooms(),
-  vine_s: vines(26, 2),
-  vine_l: vines(46, 7),
+  vine_s: vines(16, 2),
+  vine_l: vines(28, 7),
   nest: nest(),
   hut: hut(),
   giant_trunk: giantTrunk(368),

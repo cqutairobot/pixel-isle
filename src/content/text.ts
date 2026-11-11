@@ -20,6 +20,8 @@ export const UI_TEXT = {
   retry: '再玩一次',
   next: '继续',
   levelTitle12: '1-2 椰影小径',
+  levelTitle13: '1-3 回声崖',
+  tallyTitle13: '回声崖 · 通关！',
   itemGet: '得到了新装备！',
   tallyTitle12: '椰影小径 · 通关！',
   confirmHint: 'K / 空格 确认',
@@ -66,6 +68,19 @@ export const HINTS: Record<string, string> = {
   coconut: '椰子里有贝壳！再打一个！',
   climb: '往上爬！铃门在树冠顶上！',
   gate2: '冰霜脚印往海崖那边去了！',
+  // 第 3 关（docs/levels/1-3.md §4）
+  ride: '哇，好快好快！',
+  double: '太高了……在空中再跳一次！再跳一次！',
+  rock: '裂开的大石头！让咩铃撞过去！',
+  knocked: '咩铃吓了一跳！……别急，她会等你的！',
+  crabs: '一口气撞过去！撞过去！',
+  swallow: '画面边上在闪！是崖燕要冲过来了！',
+  stoneGate: '石门撞不开……底下有条缝！咩铃钻不进去……',
+  echoGlint: '刚才回声里……好像有东西亮了一下？',
+  climb3: '往上跳！咩铃最会爬崖了！',
+  rush: '一口气冲到铃门！冲啊！',
+  pet: '她喜欢你！喜欢你！',
+  bye3: '咩铃，再见啦！再见啦！',
 };
 
 /** 章节地图（docs/levels/1-2.md §5） */
