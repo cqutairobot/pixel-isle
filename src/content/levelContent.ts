@@ -28,6 +28,11 @@ export interface LevelContent {
   checkpointHints?: Record<number, string>;
   /** 记进存档的剧情标记：再玩这一关时一开始就有（不再播放看过的开场、结尾） */
   storyFlags?: string[];
+  /**
+   * 只有骑着咩铃二段跳才上得去的崖坎前（1-3 的 A3）：第 cols[0] 到 cols[1] - 1 列，下面的地面顶在 feetRow 行，
+   * 崖坎比地面高 6 格。徒步走到这里时回回提醒先救出（骑上）咩铃。
+   */
+  goatWall?: { cols: [number, number]; feetRow: number };
 }
 
 export const LEVEL_CONTENT: Record<string, LevelContent> = {
@@ -56,5 +61,6 @@ export const LEVEL_CONTENT: Record<string, LevelContent> = {
     tallyTitle: UI_TEXT.tallyTitle13,
     clearHint: 'bye3',
     storyFlags: ['mieling', 'thanks13'],
+    goatWall: { cols: [38, 46], feetRow: 28 },
   },
 };

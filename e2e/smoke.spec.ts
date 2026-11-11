@@ -565,3 +565,121 @@ test('冰沙摊：1-2 通关、有 50 个贝壳 → 地图 ↓ 到冰沙摊 → 
   expect((await stored()).bag.coconut).toBe(0);
   expect(errors).toEqual([]);
 });
+
+/** 第 3 关 A3 崖坎前的引导用到的探针 */
+type L13Help = {
+  story: string | null;
+  hintsShown: Set<string>;
+  ui: { keyHint: { current: string | null } };
+  world: {
+    frame: number;
+    player: { ride: unknown };
+    goat: { body: { centerX: number; bottom: number } } | null;
+    teleportFeet(x: number, y: number): void;
+  };
+};
+
+test('第 3 关：没救出咩铃就徒步走到 A3 崖坎前，回回提醒先回去救她（不提示二段跳）；回到羊圈旁边再提示踩冰晶', async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.goto('/#1-3');
+  await page.waitForFunction(() => (window.__level?.world.frame ?? 0) > 20, null, {
+    timeout: 60_000,
+  });
+  // 往右走：开场「谷雨的请求」，长按 Esc 跳过
+  await page.keyboard.down('KeyD');
+  await page.waitForFunction(() => !!(window.__level as unknown as L13Help).story, null, {
+    timeout: 20_000,
+  });
+  await page.keyboard.up('KeyD');
+  await page.keyboard.down('Escape');
+  await page.waitForFunction(() => !(window.__level as unknown as L13Help).story, null, {
+    timeout: 20_000,
+  });
+  await page.keyboard.up('Escape');
+  // 不踩冰晶，从第 36 列一直走到崖坎前（路过第 39、40 列的二段跳提示区）
+  await page.evaluate(() =>
+    (window.__level as unknown as L13Help).world.teleportFeet(36 * 16 + 8, 28 * 16),
+  );
+  await page.waitForTimeout(300);
+  await page.keyboard.down('KeyD');
+  await page.waitForFunction(
+    () => (window.__level as unknown as L13Help).hintsShown.has('freeGoat'),
+    null,
+    { timeout: 10_000 },
+  );
+  await page.keyboard.up('KeyD');
+  const shown = await page.evaluate(() => {
+    const l = window.__level as unknown as L13Help;
+    return { double: l.hintsShown.has('double'), key: l.ui.keyHint.current };
+  });
+  expect(shown.double).toBe(false);
+  expect(shown.key).not.toBe('doubleJump');
+  // 回到羊圈旁边：再提示"跳上去，踩冰晶"
+  await page.evaluate(() =>
+    (window.__level as unknown as L13Help).world.teleportFeet(34 * 16 + 8, 28 * 16),
+  );
+  await page.waitForFunction(
+    () => (window.__level as unknown as L13Help).ui.keyHint.current === 'stomp',
+    null,
+    { timeout: 10_000 },
+  );
+  expect(errors).toEqual([]);
+});
+
+test('再玩第 3 关（咩铃已经出圈）：站到咩铃旁边提示"W 骑上"；骑着来到 A3 崖坎前提示二段跳', async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  const save = {
+    version: 3,
+    levels: {},
+    shells: 0,
+    flags: ['introSeen', 'prologueSeen', 'mieling'],
+    equipment: ['starfish'],
+    map: { node: '1-3', opened: [], chatter: [] },
+    bag: { coconut: 0, conch: 0 },
+    outfits: [],
+    outfit: 'default',
+  };
+  await page.addInitScript((s) => localStorage.setItem('pixel-isle.save', s), JSON.stringify(save));
+  await page.goto('/#1-3');
+  await page.waitForFunction(() => (window.__level?.world.frame ?? 0) > 20, null, {
+    timeout: 60_000,
+  });
+  // 没有"咩铃出圈"过场了：咩铃在羊圈里等着，站到她旁边
+  await page.evaluate(() => {
+    const w = (window.__level as unknown as L13Help).world;
+    w.teleportFeet(w.goat!.body.centerX - 4, w.goat!.body.bottom);
+  });
+  await page.waitForFunction(
+    () => (window.__level as unknown as L13Help).ui.keyHint.current === 'ride',
+    null,
+    { timeout: 5_000 },
+  );
+  await page.keyboard.press('KeyW');
+  await page.waitForFunction(
+    () => !!(window.__level as unknown as L13Help).world.player.ride,
+    null,
+    {
+      timeout: 5_000,
+    },
+  );
+  // 骑着从第 36 列走到崖坎前：回回说"在空中再跳一次"，屏幕下方提示二段跳
+  await page.evaluate(() =>
+    (window.__level as unknown as L13Help).world.teleportFeet(36 * 16 + 8, 28 * 16),
+  );
+  await page.waitForTimeout(300);
+  await page.keyboard.down('KeyD');
+  await page.waitForFunction(
+    () => (window.__level as unknown as L13Help).hintsShown.has('double'),
+    null,
+    { timeout: 10_000 },
+  );
+  await page.keyboard.up('KeyD');
+  expect(
+    await page.evaluate(() => (window.__level as unknown as L13Help).hintsShown.has('needRide')),
+  ).toBe(false);
+  expect(errors).toEqual([]);
+});

@@ -123,6 +123,10 @@ export class LevelScene extends Phaser.Scene {
   private keyDone = { moved: 0, jumps: 0 };
   /** "摸摸她"的按键提示：骑过咩铃以后，第一次徒步站在她旁边时出现一次 */
   private petHint = { rode: false, shown: false };
+  /** "W 骑上"的按键提示还没出过（或者回回刚提醒过要骑上）：站到咩铃旁边时出现 */
+  private rideKeyWanted = true;
+  /** 只有咩铃上得去的崖坎前：徒步时回回的提醒，和徒步路过时先不说的二段跳提示 */
+  private wallHelp = { t: 0, said: 0, doublePending: false, restomp: false };
   private death: { t: number; x: number; y: number; vy: number; dy: number } | null = null;
   private clearT = -1;
   private gray: Phaser.Filters.ColorMatrix | null = null;
@@ -151,6 +155,9 @@ export class LevelScene extends Phaser.Scene {
     this.handoff = null;
     this.lanternGlows = [];
     this.keyDone = { moved: 0, jumps: 0 };
+    this.petHint = { rode: false, shown: false };
+    this.rideKeyWanted = true;
+    this.wallHelp = { t: 0, said: 0, doublePending: false, restomp: false };
     this.death = null;
     this.clearT = -1;
     this.pauseMenu = null;
@@ -540,7 +547,68 @@ export class LevelScene extends Phaser.Scene {
     const p = w.player;
     if (Math.abs(p.body.x - this.startX) > 40) this.ui.keyHint.done('move');
     if (p.running) this.ui.keyHint.done('run');
+    // "W 骑上"排在"摸摸她"前面：回回提醒"骑上咩铃"以后，先告诉玩家怎么骑
+    this.maybeRideHint();
     this.maybePetHint();
+    this.updateGoatWall();
+  }
+
+  /**
+   * "W 骑上"：站到咩铃旁边、而且还没提示过时出现（再玩这一关时没有"咩铃出圈"过场，
+   * 也靠这个提示）；回回提醒过"骑上咩铃"以后再出现一次
+   */
+  private maybeRideHint(): void {
+    const w = this.world;
+    if (!this.rideKeyWanted || w.player.ride || !w.mountTarget || this.ui.keyHint.current) return;
+    this.rideKeyWanted = false;
+    this.ui.keyHint.show('ride', this.scheme(), 6);
+  }
+
+  /**
+   * 只有骑着咩铃二段跳才上得去的崖坎前（LevelContent.goatWall）：
+   * - 徒步站在下面（跳着也算）0.4 秒，回回提醒：咩铃还冻着就回去救她，救出来了就骑上她；
+   *   一直在这里打转的话每 10 秒再提醒一次，最多 3 次。
+   * - 提醒过"回去救她"以后，走回冰晶旁边时再提示一次"跳上去，踩冰晶"。
+   * - 徒步路过时没说的二段跳提示，等骑着来到这里再说。
+   */
+  private updateGoatWall(): void {
+    const zone = this.content.goatWall;
+    if (!zone) return;
+    const h = this.wallHelp;
+    const w = this.world;
+    const p = w.player;
+    const b = p.body;
+    const col = b.centerX / TILE;
+    const below = b.bottom > (zone.feetRow - 6) * TILE;
+    const inZone = col >= zone.cols[0] && col < zone.cols[1] && below && w.state === 'play';
+    if (p.ride) {
+      if (h.doublePending && inZone) {
+        h.doublePending = false;
+        this.hint('double');
+        this.ui.keyHint.show('doubleJump', this.scheme());
+      }
+      return;
+    }
+    const crystal = w.crystal;
+    if (h.restomp && crystal && p.onGround && !this.ui.keyHint.current) {
+      if (Math.abs(b.centerX - (crystal.rect.x + crystal.rect.w / 2)) <= 5 * TILE) {
+        h.restomp = false;
+        this.ui.keyHint.show('stomp', this.scheme());
+      }
+    }
+    if (!inZone || h.said >= 3) return;
+    h.t += 1 / 60;
+    const due = h.said === 0 ? 0.4 : 0.4 + 10 * h.said;
+    if (h.t < due) return;
+    h.said++;
+    if (w.flags.has('mieling')) {
+      this.hintAgain('needRide');
+      // 咩铃不在身边的话 2 秒内会自己蹦回来；站到她旁边时再提示"W 骑上"
+      this.rideKeyWanted = true;
+    } else {
+      this.hintAgain('freeGoat');
+      h.restomp = true;
+    }
   }
 
   /** 骑过咩铃、又第一次徒步站到她身边（多半是在石门前下来以后）：提示可以摸摸她 */
@@ -581,8 +649,10 @@ export class LevelScene extends Phaser.Scene {
           for (const f of story) setFlag(this.save, f);
           writeSave(this.save);
         }
-        if (id === 'rescue')
+        if (id === 'rescue') {
+          this.rideKeyWanted = false;
           this.time.delayedCall(400, () => this.ui.keyHint.show('ride', this.scheme(), 6));
+        }
         if (id === 'echo') this.time.delayedCall(700, () => this.hint('echoGlint'));
         // 拿到的装备记进存档
         const got = (end.flags ?? []).filter((f) => EQUIPMENT_IDS.includes(f));
@@ -822,6 +892,12 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /** 回回的提示（每条只出现一次）；回回还没出现时由小满头顶说 */
+  /** 同一条提示可以再说一次（只有咩铃上得去的崖坎前，玩家一直在打转时） */
+  private hintAgain(id: string): void {
+    this.hintsShown.delete(id);
+    this.hint(id);
+  }
+
   private hint(id: string): void {
     if (this.hintsShown.has(id) || !HINTS[id]) return;
     this.hintsShown.add(id);
@@ -847,7 +923,11 @@ export class LevelScene extends Phaser.Scene {
           this.ui.keyHint.done('drop');
           break;
         case 'trigger':
-          if (e.id.startsWith('key:')) this.ui.keyHint.show(e.id.slice(4) as 'talk', this.scheme());
+          // 二段跳只有骑着才有：徒步路过时先不说（回回改说"先救咩铃"），骑着来到崖坎前再补上
+          if ((e.id === 'hint:double' || e.id === 'key:doubleJump') && !w.player.ride)
+            this.wallHelp.doublePending = true;
+          else if (e.id.startsWith('key:'))
+            this.ui.keyHint.show(e.id.slice(4) as 'talk', this.scheme());
           else if (e.id.startsWith('hint:')) this.hint(e.id.slice(5));
           else if (e.id === 'echo13') this.echoGag();
           break;
@@ -867,6 +947,7 @@ export class LevelScene extends Phaser.Scene {
           hud.setMount(true);
           this.syncRideMusic();
           this.petHint.rode = true;
+          this.rideKeyWanted = false;
           this.ui.keyHint.done('ride');
           this.time.delayedCall(250, () => this.hint('ride'));
           break;
