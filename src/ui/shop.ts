@@ -78,6 +78,8 @@ export class ShopScreen implements Modal {
   private lineText: PixelText | null = null;
   private queue: Line[] = [];
   private holdT = 0;
+  /** 这一句说完以后停多久再说下一句（按字数，长句子多留一会儿读） */
+  private holdFor = 0.9;
   private daishuFace = 'normal';
   private portrait: Phaser.GameObjects.Image | null = null;
   private blinkT = 2.5;
@@ -322,6 +324,7 @@ export class ShopScreen implements Modal {
     this.lineText!.setText(line.text).type();
     this.queueSpeaker = sp.voice;
     this.holdT = 0;
+    this.holdFor = 0.8 + 0.06 * line.text.replace(/\{[^}]*\}/g, '').length;
     this.talking = line.who === 'daishu';
     if (line.who === 'daishu') this.daishuFace = line.face ?? 'normal';
   }
@@ -500,7 +503,7 @@ export class ShopScreen implements Modal {
     // 对白：说完停一会儿再说下一句
     if (this.lineText?.done && this.queue.length) {
       this.holdT += dt;
-      if (this.holdT > 0.9) this.startLine(this.queue.shift()!);
+      if (this.holdT > this.holdFor) this.startLine(this.queue.shift()!);
     }
     // 大暑：说话时张嘴，时不时眨眼
     if (this.portrait) {

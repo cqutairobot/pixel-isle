@@ -20,8 +20,10 @@ export const DECO: Record<
     dy?: number;
     /** 前景：画在最前面，有人走到后面时变透明 */
     front?: boolean;
-    /** 固定的透明度（薄雾） */
+    /** 透明度（薄雾） */
     alpha?: number;
+    /** 慢慢淡入淡出、左右飘一点（薄雾） */
+    fade?: boolean;
   }
 > = {
   house_home: { frames: ['deco/house_home'] },
@@ -73,8 +75,8 @@ export const DECO: Record<
   hoof: { frames: ['cliff/hoof'], depth: 1, dy: 0 },
   wool: { frames: ['cliff/wool'], oy: 0, depth: 1 },
   swallow_nest: { frames: ['cliff/nest'], depth: -4 },
-  mist: { frames: ['cliff/mist_0'], depth: 42, alpha: 0.45 },
-  mist_b: { frames: ['cliff/mist_1'], depth: 42, alpha: 0.45 },
+  mist: { frames: ['cliff/mist_0'], depth: 42, alpha: 0.45, fade: true },
+  mist_b: { frames: ['cliff/mist_1'], depth: 42, alpha: 0.45, fade: true },
 };
 
 /** 前景遮挡：有人在后面时淡到这个透明度 */
@@ -105,6 +107,13 @@ export class LevelView {
   private fronts: Phaser.GameObjects.Image[] = [];
   private anims: Anim[] = [];
   private bobs: Bob[] = [];
+  /** 薄雾：透明度在 55%–100% 之间慢慢起伏（约 12 秒一轮），左右飘 6 像素 */
+  private mists: Array<{
+    img: Phaser.GameObjects.Image;
+    alpha: number;
+    baseX: number;
+    phase: number;
+  }> = [];
   private time = 0;
   private waterFrame = -1;
 
@@ -206,6 +215,7 @@ export class LevelView {
       this.anims.push({ img, frames, fps: d.fps ?? 2, phase: (e.at[0] * 0.37) % 1 });
     if (e.kind === 'boat' || e.kind === 'post')
       this.bobs.push({ img, baseY: y, phase: e.at[0] * 0.7 });
+    if (d.fade) this.mists.push({ img, alpha: d.alpha ?? 1, baseX: x, phase: e.at[0] * 0.53 });
   }
 
   /** 背墙：在视差背景前面、所有装饰后面；洞比竖井靠前一层，好让洞口那几列渐变透出竖井的背墙 */
@@ -262,6 +272,11 @@ export class LevelView {
       );
     for (const b of this.bobs)
       b.img.y = b.baseY + Math.round(Math.sin(this.time * 1.8 + b.phase) * 1.2);
+    for (const m of this.mists) {
+      const k = 0.5 + 0.5 * Math.sin(this.time * 0.52 + m.phase);
+      m.img.setAlpha(m.alpha * (0.55 + 0.45 * k));
+      m.img.x = m.baseX + Math.round(Math.sin(this.time * 0.21 + m.phase * 1.7) * 6);
+    }
   }
 
   /**
