@@ -66,6 +66,8 @@ export interface MapMenuHooks {
   resume(): void;
   settings(): void;
   toTitle(): void;
+  /** 换装（大暑的冰沙摊开张以后才有用；不给就不显示这一项） */
+  outfits?: () => void;
 }
 
 /** 地图菜单（在章节地图上按 Esc）：继续 / 设置 / 回到标题 */
@@ -76,7 +78,7 @@ export class MapMenu extends PanelModal {
     host: ModalHost,
     private hooks: MapMenuHooks,
   ) {
-    super(host, 150, 84, 'paper', 0.25);
+    super(host, 150, hooks.outfits ? 100 : 84, 'paper', 0.25);
     this.centered(MAP_TEXT.menuTitle, 7, 'red1');
     this.menu = new Menu(
       host.scene,
@@ -84,6 +86,11 @@ export class MapMenu extends PanelModal {
       28,
       [
         { label: MENU_TEXT.resume, select: () => this.close(hooks.resume) },
+        {
+          label: MAP_TEXT.outfits,
+          select: () => this.close(hooks.outfits),
+          hidden: !hooks.outfits,
+        },
         { label: MENU_TEXT.settings, select: () => hooks.settings() },
         { label: MENU_TEXT.toTitle, select: () => this.close(hooks.toTitle) },
       ],

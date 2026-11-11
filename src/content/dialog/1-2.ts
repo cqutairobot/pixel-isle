@@ -66,7 +66,14 @@ export const MAP_CHATTER: Record<string, Line[]> = {
     { who: 'xiaoman', text: '冰霜脚印往椰林里去了。' },
     { who: 'huihui', text: '凉飕飕的……凉飕飕的。' },
   ],
-  after12: [{ who: 'huihui', text: '下一站是海崖！……路还没修好？' }],
+  after12: [{ who: 'huihui', text: '下一站是海崖！好高……好高……' }],
+  // 第 3 关（docs/levels/1-3.md §4）
+  to13: [
+    { who: 'xiaoman', text: '冰霜脚印上了海崖。' },
+    { who: 'huihui', text: '好高……好高……我才不怕！不怕！' },
+  ],
+  after13: [{ who: 'huihui', text: '冻浪湾……光听名字就好冷……好冷……' }],
+  shopOpen: [{ who: 'daishu', text: '开张啦——！冰沙管够！' }],
 };
 
 export function allDialogText12(): string[] {

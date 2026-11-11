@@ -1,5 +1,5 @@
 import type { ColorName } from './palette';
-import { Paint, type ImageSheet } from './paint';
+import { ditherPick, Paint, type ImageSheet } from './paint';
 import type { RGBAImage } from './sprite';
 
 /**
@@ -213,6 +213,55 @@ function miniDaishu(wave: number): RGBAImage {
   } else p.vline(10, 6, 8, 'skin1');
   p.vline(1, 6, 8, 'skin1');
   p.outline('night');
+  return p.toImage();
+}
+
+/**
+ * 商店画面的背景（w × h）：海崖脚下的沙滩。天空越往下越白，远处一道海，左边一面深色的崖壁，
+ * 沙滩上几颗贝壳和一道浪花。
+ */
+export function shopBackdrop(w: number, h: number): RGBAImage {
+  const p = new Paint(w, h);
+  const horizon = Math.round(h * 0.44);
+  const shore = Math.round(h * 0.55);
+  for (let y = 0; y < horizon; y++) {
+    const t = y / horizon;
+    for (let x = 0; x < w; x++)
+      p.set(x, y, t < 0.55 ? 'sky' : ditherPick(x, y, (t - 0.55) * 2.2, 'sky', 'cloud'));
+  }
+  // 远处的海：上亮下暗，零星几道白浪
+  for (let y = horizon; y < shore; y++) {
+    const t = (y - horizon) / (shore - horizon);
+    for (let x = 0; x < w; x++) p.set(x, y, ditherPick(x, y, t * 1.3, 'teal', 'sea'));
+  }
+  for (let i = 0; i < 9; i++) {
+    const x = (i * 47 + 13) % (w - 12);
+    const y = horizon + 2 + ((i * 5) % (shore - horizon - 3));
+    p.hline(x, x + 3 + (i % 3), y, 'cloud');
+  }
+  // 沙滩：靠海的一道浪花，越往下越深
+  for (let y = shore; y < h; y++) {
+    const t = (y - shore) / (h - shore);
+    for (let x = 0; x < w; x++) p.set(x, y, ditherPick(x, y, t * 1.4, 'sand3', 'sand2'));
+  }
+  for (let x = 0; x < w; x++) {
+    const y = shore + Math.round(Math.sin(x * 0.09) * 1.2);
+    p.set(x, y, 'white').set(x, y + 1, 'cloud');
+  }
+  // 左边的崖壁
+  for (let y = 0; y < shore + 6; y++) {
+    const edge = Math.round(8 + y * 0.12 + Math.sin(y * 0.3) * 2);
+    for (let x = 0; x < edge; x++) p.set(x, y, x === edge - 1 ? 'slate' : 'night');
+  }
+  // 沙滩上几颗贝壳
+  for (const [x, y] of [
+    [w - 30, shore + 20],
+    [w - 70, shore + 34],
+    [150, shore + 26],
+  ] as const)
+    p.set(x, y, 'skin1')
+      .set(x + 1, y, 'blush')
+      .set(x, y - 1, 'cream');
   return p.toImage();
 }
 

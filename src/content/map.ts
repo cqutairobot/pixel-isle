@@ -24,8 +24,10 @@ export const MAP_NODES: MapNode[] = [
   { id: '1-5', name: '潮汐神龛', x: 348, y: 168 },
 ];
 
-/** 大暑的冰沙摊（海崖下面，先显示"即将开张"） */
+/** 大暑的冰沙摊（海崖下面）：1-2 通关后开张，从「回声崖」节点按 ↓ 沿一小段路过去 */
 export const MAP_SHOP = { x: 250, y: 150 };
+/** 冰沙摊在地图上的编号（存档里记小满站在哪儿时用） */
+export const SHOP_NODE = 'shop';
 
 /** 每条路的弯曲程度：二次曲线的控制点（键是路的终点） */
 const CONTROL: Record<string, [number, number]> = {
@@ -80,6 +82,20 @@ export const MAP_PATHS: MapPath[] = MAP_NODES.slice(1).map((to, i) => {
   const from = MAP_NODES[i]!;
   return { from: from.id, to: to.id, dots: sample(from, CONTROL[to.id]!, to, 9, 10) };
 });
+
+/** 「回声崖」到冰沙摊的小路（不含两头）；小满站在冰沙车的左边 */
+export const SHOP_PATH: Array<[number, number]> = sample(
+  MAP_NODES[2]!,
+  [228, 128],
+  { id: SHOP_NODE, name: '', x: MAP_SHOP.x - 12, y: MAP_SHOP.y - 2 },
+  9,
+  8,
+);
+
+/** 冰沙摊开张了没有：1-2 通关以后 */
+export function shopOpen(save: SaveData): boolean {
+  return !!save.levels['1-2']?.cleared;
+}
 
 export function mapNode(id: string): MapNode | undefined {
   return MAP_NODES.find((n) => n.id === id);

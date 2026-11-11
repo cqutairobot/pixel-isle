@@ -96,6 +96,25 @@ export const MAP_TEXT = {
   hint: '←→ 移动 · K 选择 · Esc 菜单',
   toMap: '回到地图',
   menuTitle: '地图',
+  shopOpen: '营业中',
+  hintShop: '←→ 移动 · ↓ 冰沙摊 · K 选择 · Esc 菜单',
+  hintAtShop: '↑ 回去 · K 进店 · Esc 菜单',
+  outfits: '换装',
+  bag: '带着',
+} as const;
+
+/** 大暑的冰沙摊（docs/levels/1-3.md §5） */
+export const SHOP_TEXT = {
+  title: '大暑的冰沙摊',
+  sign: '冰沙',
+  tabBuy: '买东西',
+  tabOutfit: '换装',
+  owned: '已拥有',
+  have: '持有',
+  wearing: '穿着',
+  locked: '还没有布料',
+  hint: 'K 确定 · J 离开 · ←→ 换栏',
+  hintOutfit: 'K 换上 · J 离开',
 } as const;
 
 /** 标题画面、菜单、设置、暂停 */
