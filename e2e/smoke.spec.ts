@@ -422,3 +422,146 @@ test('第 3 关：跳过开场，踩碎冰晶救出咩铃（长按跳过），�
   expect(await page.evaluate(() => (window.__level as unknown as L13).world.hearts)).toBe(hearts);
   expect(errors).toEqual([]);
 });
+
+test('冰沙摊：1-2 通关、有 50 个贝壳 → 地图 ↓ 到冰沙摊 → 买椰子水 → 进 1-3 多一颗蓝心；地图菜单「换装」能打开', async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  const save = {
+    version: 3,
+    levels: {
+      '1-1': { cleared: true, bestFrames: 5321, glass: [false, false, false], noDamage: false },
+      '1-2': { cleared: true, bestFrames: 7012, glass: [false, false, false], noDamage: false },
+    },
+    shells: 50,
+    flags: ['introSeen', 'prologueSeen'],
+    equipment: ['starfish'],
+    map: { node: '1-3', opened: ['1-2', '1-3'], chatter: [] },
+    bag: { coconut: 0, conch: 0 },
+    outfits: [],
+    outfit: 'default',
+  };
+  type MapProbe = {
+    at: string;
+    hop: unknown;
+    revealing: boolean;
+    revealQueued: boolean;
+    ui: { modal: unknown };
+  };
+  type ShopProbe = { o: { outfitOnly?: boolean } };
+  const stored = () =>
+    page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem('pixel-isle.save')!) as {
+          shells: number;
+          bag: { coconut: number };
+          map: { opened: string[] };
+        },
+    );
+  await page.addInitScript((s) => localStorage.setItem('pixel-isle.save', s), JSON.stringify(save));
+  await page.goto('/#map');
+  // 第一次来：冰沙摊开张（"即将开张"翻成"营业中"），等它演完
+  await page.waitForFunction(
+    () => {
+      const m = (window as unknown as { __map?: MapProbe }).__map;
+      const s = JSON.parse(localStorage.getItem('pixel-isle.save') ?? '{}') as {
+        map?: { opened?: string[] };
+      };
+      return (
+        !!m && !m.revealing && !m.revealQueued && !!s.map?.opened?.includes('shop') && !m.ui.modal
+      );
+    },
+    null,
+    { timeout: 30_000 },
+  );
+  await page.waitForTimeout(1200);
+  // ↓ 沿小路跳到冰沙摊，K 进店
+  await page.keyboard.press('KeyS');
+  await page.waitForFunction(
+    () => {
+      const m = (window as unknown as { __map?: MapProbe }).__map;
+      return m?.at === 'shop' && !m.hop;
+    },
+    null,
+    { timeout: 20_000 },
+  );
+  await page.keyboard.press('KeyK');
+  await page.waitForFunction(() => !!(window as unknown as { __shop?: ShopProbe }).__shop, null, {
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(600);
+  // 货架第一样就是椰子水：K 买下
+  await page.keyboard.press('KeyK');
+  await expect.poll(async () => (await stored()).bag.coconut, { timeout: 5_000 }).toBe(1);
+  expect((await stored()).shells).toBe(30);
+  await page.screenshot({ path: 'test-results/shop.png' });
+  // J 离开，↑ 跳回 1-3，K 打开关卡卡片，再按 K 进关
+  await page.keyboard.press('KeyJ');
+  await page.waitForFunction(() => !(window as unknown as { __shop?: ShopProbe }).__shop, null, {
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(500);
+  await page.keyboard.press('KeyW');
+  await page.waitForFunction(
+    () => {
+      const m = (window as unknown as { __map?: MapProbe }).__map;
+      return m?.at === '1-3' && !m.hop;
+    },
+    null,
+    { timeout: 20_000 },
+  );
+  // 地图菜单里的「换装」：只开换装那一页
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(
+    () => !!(window as unknown as { __map?: MapProbe }).__map?.ui.modal,
+    null,
+    {
+      timeout: 5_000,
+    },
+  );
+  await page.waitForTimeout(400);
+  await page.keyboard.press('KeyS');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('KeyK');
+  await page.waitForFunction(
+    () => (window as unknown as { __shop?: ShopProbe }).__shop?.o.outfitOnly === true,
+    null,
+    { timeout: 10_000 },
+  );
+  await page.waitForTimeout(500);
+  await page.keyboard.press('KeyJ');
+  await page.waitForFunction(
+    () => {
+      const w = window as unknown as { __shop?: ShopProbe; __map?: MapProbe };
+      return !w.__shop && !w.__map?.ui.modal;
+    },
+    null,
+    { timeout: 10_000 },
+  );
+  await page.waitForTimeout(400);
+  await page.keyboard.press('KeyK');
+  await page.waitForFunction(
+    () => !!(window as unknown as { __map?: MapProbe }).__map?.ui.modal,
+    null,
+    {
+      timeout: 5_000,
+    },
+  );
+  await page.waitForTimeout(500);
+  await page.keyboard.press('KeyK');
+  await page.waitForFunction(
+    () =>
+      (window.__level as unknown as { levelId?: string } | undefined)?.levelId === '1-3' &&
+      (window.__level?.world.frame ?? 0) > 5,
+    null,
+    { timeout: 30_000 },
+  );
+  // 进关时喝掉椰子水：多一颗蓝心，背包里的椰子水用掉了
+  expect(
+    await page.evaluate(
+      () => (window.__level as unknown as { world: { blueHearts: number } }).world.blueHearts,
+    ),
+  ).toBe(1);
+  expect((await stored()).bag.coconut).toBe(0);
+  expect(errors).toEqual([]);
+});
