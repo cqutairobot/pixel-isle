@@ -26,7 +26,9 @@ import type { SimEvent } from '../sim/events';
 import type { Player } from '../sim/player';
 import { BTN, EMPTY_INPUT, type InputFrame } from '../sim/input';
 import { parseLevel, standAt, type ParsedLevel } from '../sim/level';
-import { cloneTuning, PRESETS } from '../sim/tuning';
+import { cloneTuning, PRESETS, RULES } from '../sim/tuning';
+import { outfitOf } from '../content/outfits';
+import { ConchBubble } from '../view/conchBubble';
 import { World } from '../sim/world';
 import { settings, SHAKE_INTENSITY } from '../platform/settings';
 import { ConfirmBox } from '../ui/panelModal';
@@ -85,6 +87,7 @@ export class LevelScene extends Phaser.Scene {
   private juice!: Juice;
   private bg!: IslandBackground | GroveBackground | CliffBackground;
   private mount!: MountView;
+  private conchBubble!: ConchBubble;
   private starfishView!: StarfishView;
   private view!: LevelView;
   private ents!: EntityViews;
@@ -147,6 +150,14 @@ export class LevelScene extends Phaser.Scene {
   create(data: LevelSceneData): void {
     this.save = loadSave();
     this.level = parseLevel(LEVELS[this.levelId]!);
+    // 背包道具（docs/levels/1-3.md §5）：进关时喝掉椰子水（多一颗蓝心）；护身海螺带进去，用掉才从背包里拿走
+    const bag = this.save.bag;
+    const useBag = this.mode === 'play' && !this.level.practice;
+    const drink = useBag && bag.coconut > 0;
+    if (drink) {
+      bag.coconut -= 1;
+      writeSave(this.save);
+    }
     this.world = new World(
       this.level,
       cloneTuning(PRESETS.A.tuning),
@@ -160,6 +171,8 @@ export class LevelScene extends Phaser.Scene {
           ...this.save.equipment,
           ...(this.content.storyFlags ?? []).filter((f) => this.save.flags.includes(f)),
         ],
+        blueHearts: drink ? 1 : 0,
+        conch: useBag && bag.conch > 0,
       },
       VIEW_W,
       VIEW_H,
@@ -184,6 +197,7 @@ export class LevelScene extends Phaser.Scene {
     this.starfishView = new StarfishView(this, this.world);
     this.overlay = new DebugOverlay(this);
     this.hero = new HeroView(this);
+    this.hero.setOutfit(outfitOf(this.save.outfit));
     this.hero.sprite.setDepth(10);
     this.hero.ribbon.gfx.setDepth(9);
     this.juice = new Juice(
@@ -194,6 +208,7 @@ export class LevelScene extends Phaser.Scene {
       () => this.cameras.main.scrollX,
     );
     this.mount = new MountView(this, this.world, this.particles, this.hero.sprite);
+    this.conchBubble = new ConchBubble(this, this.particles);
     this.mount.onStep = (x, y, speed) => this.juice.goatStep(x, y, speed);
     this.devices = new InputDevices();
     this.gray = this.cameras.main.filters.internal.addColorMatrix();
@@ -207,6 +222,13 @@ export class LevelScene extends Phaser.Scene {
     this.ui.setCover(0);
     this.ui.setLevelUI(this.mode === 'play');
     this.ui.hud.setMaxHearts(this.world.maxHearts, this.world.hearts);
+    this.ui.hud.setConch(this.world.conch);
+    // 椰子水：开场一会儿以后"咕嘟"一声，蓝心弹出来
+    if (drink)
+      this.time.delayedCall(900, () => {
+        this.ui.hud.setBlueHearts(this.world.blueHearts);
+        audio.play('coconutDrink', { volume: 0.9 });
+      });
     this.ui.hud.setShells(0, true);
     this.ui.hud.setEquip(this.world.equipment.length > 0);
     this.syncGlass();
@@ -849,6 +871,7 @@ export class LevelScene extends Phaser.Scene {
           break;
         case 'hurt':
           hud.setHearts(w.hearts);
+          hud.setBlueHearts(w.blueHearts);
           if (e.spike) this.time.delayedCall(250, () => this.hint('spike'));
           break;
         case 'heal':
@@ -856,13 +879,31 @@ export class LevelScene extends Phaser.Scene {
           break;
         case 'splash':
           // 掉海扣光了心：不先淡出，完整播放倒下演出（和被敌人打倒一样）
-          if (e.big && w.state !== 'dying') {
+          if (e.big && !e.conch && w.state !== 'dying') {
             this.hint('water');
             this.time.delayedCall(260, () => this.cameras.main.fadeOut(160, ...FADE));
           }
           break;
         case 'fellOut':
-          if (w.state !== 'dying') this.cameras.main.fadeOut(160, ...FADE);
+          if (!e.conch && w.state !== 'dying') this.cameras.main.fadeOut(160, ...FADE);
+          break;
+        case 'conch':
+          // 护身海螺：用掉了，从背包里拿走；大泡泡把小满（骑着的话连咩铃）托回去
+          this.save.bag.conch = Math.max(0, this.save.bag.conch - 1);
+          writeSave(this.save);
+          hud.setConch(false);
+          audio.play('conchBubble', { volume: 0.9 });
+          this.conchBubble.start(
+            e.x,
+            e.y,
+            e.toX,
+            e.toY,
+            RULES.conchRespawnFrames / 60,
+            this.hero.frameName,
+            w.player.ride ? 'goat/jump' : null,
+            w.player.facing,
+          );
+          this.hint('conch');
           break;
         case 'sun':
           audio.music.play(e.on ? 'sun' : (this.level.music ?? 'beach'), e.on ? 0.3 : 0.9);
@@ -876,7 +917,11 @@ export class LevelScene extends Phaser.Scene {
           this.snapPrev();
           hud.setEquipOut(false);
           this.hero.resetRibbon(w.player.body.centerX, w.player.body.bottom);
-          if (e.cause !== 'death') {
+          if (e.cause === 'conch') {
+            // 泡泡到了：啵地破开，画面没有淡出过，不用淡入
+            this.conchBubble.pop();
+            audio.play('cloudPuff', { volume: 0.5, rate: 1.6 });
+          } else if (e.cause !== 'death') {
             this.cameras.main.fadeIn(220, ...FADE);
             // 兜底：界面层的转场不该在这时还盖着画面
             if (this.ui.transition.covered && !this.ui.transition.busy)
@@ -1141,6 +1186,7 @@ export class LevelScene extends Phaser.Scene {
     for (const e of w.enemies) if (e.alive && e.active) fronts.push(e.body);
     this.view.updateFronts(dt, fronts);
     this.particles.update(dt, false);
+    this.conchBubble.update(dt);
     this.juice.tick(dt, w);
     this.bg.update(dt, cx, cy);
     this.view.update(dt);

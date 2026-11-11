@@ -81,6 +81,7 @@ export const HINTS: Record<string, string> = {
   rush: '一口气冲到铃门！冲啊！',
   pet: '她喜欢你！喜欢你！',
   bye3: '咩铃，再见啦！再见啦！',
+  conch: '泡泡！海螺把我们托回来了！',
 };
 
 /** 章节地图（docs/levels/1-2.md §5） */

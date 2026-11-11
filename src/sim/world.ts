@@ -1603,7 +1603,7 @@ export class World implements PlayerEnv {
     if (this.conch) {
       this.conch = false;
       this.respawnCause = 'conch';
-      this.respawnTimer = RULES.fallRespawnFrames;
+      this.respawnTimer = RULES.conchRespawnFrames;
       this.emit({
         type: 'conch',
         x: p.body.centerX,

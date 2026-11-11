@@ -178,6 +178,8 @@ export const RULES = {
   brickHitstop: 2,
   /** 掉海、掉坑：多少帧后回到岸上，回来后的无敌帧 */
   fallRespawnFrames: 36,
+  /** 护身海螺的泡泡托回去要多久（比普通掉坑回来慢一点，看得见泡泡飘过去） */
+  conchRespawnFrames: 60,
   respawnIframes: 60,
   /** 死亡：定格帧数、从死亡到复活的总帧数 */
   deathFreezeFrames: 12,

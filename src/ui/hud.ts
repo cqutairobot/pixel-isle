@@ -30,6 +30,11 @@ interface Digit {
 export class Hud {
   readonly root: Phaser.GameObjects.Container;
   private hearts: Phaser.GameObjects.Image[] = [];
+  /** 椰子水的蓝心（排在红心后面，碎了就没了） */
+  private blue: Array<{ img: Phaser.GameObjects.Image; spring: Spring; breakT: number }> = [];
+  /** 护身海螺的小图标（带着时显示在心的后面） */
+  private conchIcon: Phaser.GameObjects.Image | null = null;
+  private conchSpring = new Spring(1, 700, 12);
   private heartSprings: Spring[] = [];
   private breaking: Array<{ i: number; t: number }> = [];
   private hp = 3;
@@ -133,6 +138,10 @@ export class Hud {
   setMaxHearts(max: number, hp: number): void {
     for (const h of this.hearts) h.destroy();
     this.hearts = [];
+    for (const b of this.blue) b.img.destroy();
+    this.blue = [];
+    this.conchIcon?.destroy();
+    this.conchIcon = null;
     this.heartSprings = [];
     this.max = max;
     this.hp = hp;
@@ -149,6 +158,53 @@ export class Hud {
       this.heartSprings.push(new Spring(1, 800, 14));
       this.root.add(img);
     }
+  }
+
+  /** 蓝心的个数：多了就弹出来，少了就碎掉 */
+  setBlueHearts(n: number): void {
+    const alive = this.blue.filter((b) => b.breakT < 0);
+    if (n > alive.length) {
+      for (let i = alive.length; i < n; i++) {
+        const img = this.scene.add
+          .image(0, HEART_Y + 4, ATLAS, 'ui/heart_blue')
+          .setOrigin(0.5, 0.5);
+        this.root.add(img);
+        const spring = new Spring(1, 800, 14);
+        spring.set(1.8);
+        this.blue.push({ img, spring, breakT: -1 });
+      }
+    } else
+      for (let i = n; i < alive.length; i++) {
+        alive[i]!.breakT = 0;
+        this.shakeT = 0.3;
+      }
+    this.placeConch();
+  }
+
+  /** 护身海螺：带着时在心的后面显示一个小海螺 */
+  setConch(on: boolean): void {
+    if (on && !this.conchIcon) {
+      this.conchIcon = this.scene.add.image(0, HEART_Y + 4, ATLAS, 'ui/conch').setOrigin(0.5, 0.5);
+      this.root.add(this.conchIcon);
+      this.conchSpring.set(1.8);
+    } else if (!on && this.conchIcon) {
+      const icon = this.conchIcon;
+      this.conchIcon = null;
+      this.scene.tweens.add({
+        targets: icon,
+        y: icon.y - 8,
+        alpha: 0,
+        scale: 1.6,
+        duration: 300,
+        onComplete: () => icon.destroy(),
+      });
+    }
+    this.placeConch();
+  }
+
+  private placeConch(): void {
+    const n = this.max + this.blue.length;
+    this.conchIcon?.setX(HEART_X + n * HEART_STEP + 6);
   }
 
   /** 心数变化：减少时播放碎裂，增加时弹一下 */
@@ -278,6 +334,23 @@ export class Hud {
     });
     const shake =
       this.shakeT > 0 ? Math.round(Math.sin(this.time * 80) * 2 * (this.shakeT / 0.3)) : 0;
+    // 蓝心：弹出来；碎的时候播三帧碎裂，然后消失
+    this.blue = this.blue.filter((b, i) => {
+      b.img.x = HEART_X + (this.max + i) * HEART_STEP + 5 + shake;
+      if (b.breakT < 0) {
+        b.img.setScale(b.spring.update(dt));
+        return true;
+      }
+      b.breakT += dt;
+      if (b.breakT < 0.28) {
+        b.img.setFrame(`ui/heart_blue_break_${Math.min(2, Math.floor(b.breakT / 0.08))}`);
+        return true;
+      }
+      b.img.destroy();
+      this.placeConch();
+      return false;
+    });
+    if (this.conchIcon) this.conchIcon.setScale(this.conchSpring.update(dt));
     this.shakeT = Math.max(0, this.shakeT - dt);
     const low = this.hp === 1 && this.max > 1;
     this.hearts.forEach((img, i) => {

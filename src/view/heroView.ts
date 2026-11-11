@@ -1,3 +1,4 @@
+import type { Outfit } from '../content/outfits';
 import type Phaser from 'phaser';
 import { HERO_H, HERO_HAT_DX, HERO_HAT_DY, HERO_W, RIBBON_ANCHOR } from '../art/hero';
 import type { SimEvent } from '../sim/events';
@@ -44,12 +45,26 @@ export class HeroView {
   private act: { kind: 'throw' | 'catch' | 'flip' | 'pet'; up: boolean; t: number } | null = null;
   /** 减少闪烁：受击时不白闪 */
   reduceFlash = false;
+  /** 现在穿的衣服对应的精灵表（hero、hero_blue……） */
+  private sheet = 'hero';
   /** 跑步动画里脚着地的那一帧回调（播放脚步声、扬尘） */
   onFootstep?: (x: number, y: number, ratio: number) => void;
 
   constructor(scene: Phaser.Scene) {
     this.ribbon = new Ribbon(scene);
     this.sprite = scene.add.image(0, 0, ATLAS, 'hero/idle_0').setOrigin(0.5, 1);
+  }
+
+  /** 换装：换一张精灵表，飘带跟着帽带换色 */
+  setOutfit(o: Outfit): void {
+    this.sheet = o.sheet;
+    this.ribbon.setColors(o.ribbon[0], o.ribbon[1]);
+    this.sprite.setFrame(`${this.sheet}/${this.frame}`);
+  }
+
+  /** 当前帧完整的帧名（带服装的精灵表前缀） */
+  get frameName(): string {
+    return `${this.sheet}/${this.frame}`;
   }
 
   get currentFrame(): string {
@@ -141,7 +156,7 @@ export class HeroView {
     }
     this.frame = this.override ?? this.actFrame(p) ?? this.pickFrame(dt, p, t, x, y);
     const s = this.sprite;
-    s.setFrame(`hero/${this.frame}`);
+    s.setFrame(`${this.sheet}/${this.frame}`);
     if (this.flashTime > 0 && !this.reduceFlash) {
       this.flashTime -= dt;
       // 1 = TintModes.FILL：整个精灵填成白色
