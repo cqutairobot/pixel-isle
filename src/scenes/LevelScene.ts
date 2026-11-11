@@ -121,6 +121,8 @@ export class LevelScene extends Phaser.Scene {
   private handoff: { x: number; y: number; t: number } | null = null;
   private lanternGlows: Phaser.GameObjects.Image[] = [];
   private keyDone = { moved: 0, jumps: 0 };
+  /** "摸摸她"的按键提示：骑过咩铃以后，第一次徒步站在她旁边时出现一次 */
+  private petHint = { rode: false, shown: false };
   private death: { t: number; x: number; y: number; vy: number; dy: number } | null = null;
   private clearT = -1;
   private gray: Phaser.Filters.ColorMatrix | null = null;
@@ -538,6 +540,22 @@ export class LevelScene extends Phaser.Scene {
     const p = w.player;
     if (Math.abs(p.body.x - this.startX) > 40) this.ui.keyHint.done('move');
     if (p.running) this.ui.keyHint.done('run');
+    this.maybePetHint();
+  }
+
+  /** 骑过咩铃、又第一次徒步站到她身边（多半是在石门前下来以后）：提示可以摸摸她 */
+  private maybePetHint(): void {
+    const h = this.petHint;
+    const w = this.world;
+    const p = w.player;
+    const g = w.goat;
+    if (h.shown || !g || p.ride) return;
+    if (!h.rode || w.flags.has('petted') || this.ui.keyHint.current) return;
+    if (!p.onGround || (g.mode !== 'idle' && g.mode !== 'home')) return;
+    if (Math.abs(g.body.centerX - p.body.centerX) > RULES.petRange) return;
+    if (Math.abs(g.body.bottom - p.body.bottom) > 4) return;
+    h.shown = true;
+    this.ui.keyHint.show('pet', this.scheme(), 5);
   }
 
   /** 世界在等对话或过场：开始播放，播完再让世界继续（结果和跳过、回放一致） */
@@ -848,6 +866,7 @@ export class LevelScene extends Phaser.Scene {
         case 'mount':
           hud.setMount(true);
           this.syncRideMusic();
+          this.petHint.rode = true;
           this.ui.keyHint.done('ride');
           this.time.delayedCall(250, () => this.hint('ride'));
           break;

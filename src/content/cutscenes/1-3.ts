@@ -132,6 +132,8 @@ export async function thanks(d: Director): Promise<void> {
     d.hero.mounted = false;
     d.sfx('goatDismount');
     await d.walk(d.hero.x - 18, 90);
+    // 跳下来往后退了两步，再转回来看着谷雨
+    d.face(1);
   } else {
     // 走着来的：咩铃从后面蹦进来
     d.spawn('goat', 'goat/jump', d.hero.x - 140, RIDGE - 30, { head: 20, depth: 8.5 });
@@ -145,7 +147,17 @@ export async function thanks(d: Director): Promise<void> {
   d.sfx('goatPet');
   await d.say(GUYU_THANKS[0]!);
   d.cycle('guyu', ['npc/guyu_idle_0', 'npc/guyu_idle_1'], 2);
+  // 谷雨想起什么：头上冒个"！"，转身朝东边（冻浪湾）一指，说起那只大螃蟹
+  await d.wait(0.3);
+  d.emote('guyu', 'bang', 0.9);
+  d.sfx('emote');
+  await d.wait(0.6);
+  d.flip('guyu', false);
+  d.cycle('guyu', ['npc/guyu_point'], 1);
+  await d.wait(0.35);
   await d.say(GUYU_THANKS[1]!);
+  d.flip('guyu', true);
+  d.cycle('guyu', ['npc/guyu_idle_0', 'npc/guyu_idle_1'], 2);
   if (d.hasFlag('petted')) await d.say(GUYU_THANKS_PETTED);
   await d.say(GUYU_THANKS[2]!);
   d.remove('goat');

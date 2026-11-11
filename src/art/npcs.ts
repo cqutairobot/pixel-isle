@@ -359,7 +359,7 @@ function glow(r: number): RGBAImage {
 
 // —— 谷雨（第 3 关）：十岁的放羊娃，乱蓬蓬的棕色头发翘着一撮呆毛，绿色短褂系草绳，
 // 手里一根顶上打弯的放羊杖。比小满还矮一点 ——
-type GuyuPose = 'idle' | 'cry' | 'wave' | 'run' | 'hug';
+type GuyuPose = 'idle' | 'cry' | 'wave' | 'run' | 'hug' | 'point';
 
 function guyu(frame: number, pose: GuyuPose = 'idle'): RGBAImage {
   // 宽 18：右边给放羊杖和挥手留位置
@@ -391,6 +391,11 @@ function guyu(frame: number, pose: GuyuPose = 'idle'): RGBAImage {
     p.line(o + 3, 10, o + 2, 12, 'skin2');
   } else if (pose === 'hug') {
     p.line(o + 9, 10, o + 13, 10, 'skin2').line(o + 3, 10, o + 1, 11, 'skin2');
+  } else if (pose === 'point') {
+    // 胳膊伸直朝前上方一指（冻浪湾在那边），放羊杖夹在另一边胳肢窝下
+    p.line(o + 9, 10, o + 13, 8, 'skin2').set(o + 14, 7, 'skin2');
+    p.line(o + 1, 17, o + 4, 6, 'sand1');
+    p.line(o + 3, 10, o + 2, 12, 'skin2');
   } else {
     // 放羊杖：比人高，顶上打个弯
     const sx = o + 12;
@@ -430,6 +435,7 @@ const frames: Record<string, RGBAImage> = {
   guyu_run_0: guyu(0, 'run'),
   guyu_run_1: guyu(1, 'run'),
   guyu_hug: guyu(0, 'hug'),
+  guyu_point: guyu(0, 'point'),
   haishen_idle_0: haishen(0, false),
   haishen_idle_1: haishen(1, false),
   haishen_wave_0: haishen(0, true),
