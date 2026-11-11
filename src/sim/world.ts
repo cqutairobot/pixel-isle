@@ -23,6 +23,10 @@ export interface WorldOptions {
   foundGlass?: readonly boolean[];
   /** 一开始就有的剧情标记（例如已经拿到的装备 starfish） */
   flags?: readonly string[];
+  /** 椰子水：多几颗临时的蓝心（受伤先扣它，芒果补不回来，这一关结束就没了） */
+  blueHearts?: number;
+  /** 护身海螺：下一次掉坑、掉进冷水或云海时托回去，不扣心（只用一次） */
+  conch?: boolean;
 }
 
 /** 练习场里掉出地图后，过多少帧回到安全地面 */
@@ -171,6 +175,10 @@ export class World implements PlayerEnv {
   hitstop = 0;
   hearts: number;
   maxHearts: number;
+  /** 椰子水的蓝心（受伤先扣它） */
+  blueHearts = 0;
+  /** 还带着护身海螺 */
+  conch = false;
   /** 受击或复活后的无敌帧 */
   iframes = 0;
   /** 受击硬直：不能操作 */
@@ -215,6 +223,8 @@ export class World implements PlayerEnv {
     this.camera = new SimCamera(viewW, viewH, level.grid.widthPx, level.grid.heightPx);
     this.maxHearts = options.assist ? RULES.assistHearts : RULES.hearts;
     this.hearts = this.maxHearts;
+    this.blueHearts = level.practice ? 0 : Math.max(0, Math.floor(options.blueHearts ?? 0));
+    this.conch = !level.practice && !!options.conch;
     this.foundGlass = options.foundGlass ?? [];
     this.blocks = new BlockSet(level.grid);
     this.items = new ItemSet(level.grid);
@@ -1484,7 +1494,10 @@ export class World implements PlayerEnv {
       this.knockOff(fromX);
       return;
     }
-    this.hearts--;
+    // 有椰子水的蓝心就先扣蓝心
+    const blue = this.blueHearts > 0;
+    if (blue) this.blueHearts--;
+    else this.hearts--;
     this.stats.damaged = true;
     this.combo = 0;
     const dir = Math.sign(p.body.centerX - fromX) || -p.facing;
@@ -1495,6 +1508,7 @@ export class World implements PlayerEnv {
       hearts: this.hearts,
       dir,
       spike,
+      blue,
     });
     if (this.hearts <= 0) {
       this.die();
@@ -1560,16 +1574,19 @@ export class World implements PlayerEnv {
   private checkHazards(): void {
     const p = this.player;
     const b = p.body;
+    // 带着护身海螺：先告诉表现层别淡出，泡泡会把人托回去
+    const conch = this.conch && !this.level.practice;
     if (this.grid.waterAt(b.centerX, b.bottom - 4)) {
       this.emit({
         type: 'splash',
         x: b.centerX,
         y: this.waterSurface(b.centerX, b.bottom),
         big: true,
+        conch,
       });
       this.fall('water');
     } else if (b.y > this.grid.heightPx + 32) {
-      this.emit({ type: 'fellOut', x: b.centerX, y: this.grid.heightPx });
+      this.emit({ type: 'fellOut', x: b.centerX, y: this.grid.heightPx, conch });
       this.fall('pit');
     }
   }
@@ -1581,10 +1598,34 @@ export class World implements PlayerEnv {
       return;
     }
     const p = this.player;
-    this.hearts--;
-    this.stats.damaged = true;
     this.combo = 0;
-    this.emit({ type: 'hurt', x: p.body.centerX, y: p.body.centerY, hearts: this.hearts, dir: 0 });
+    // 护身海螺：用掉它，不扣心，泡泡把小满（骑着的话连咩铃）托回安全的地方
+    if (this.conch) {
+      this.conch = false;
+      this.respawnCause = 'conch';
+      this.respawnTimer = RULES.fallRespawnFrames;
+      this.emit({
+        type: 'conch',
+        x: p.body.centerX,
+        y: Math.min(p.body.bottom, this.grid.heightPx),
+        toX: p.safeFeetX,
+        toY: p.safeFeetY,
+      });
+      return;
+    }
+    // 有椰子水的蓝心就先扣蓝心
+    const blue = this.blueHearts > 0;
+    if (blue) this.blueHearts--;
+    else this.hearts--;
+    this.stats.damaged = true;
+    this.emit({
+      type: 'hurt',
+      x: p.body.centerX,
+      y: p.body.centerY,
+      hearts: this.hearts,
+      dir: 0,
+      blue,
+    });
     if (this.hearts <= 0) this.die();
     else this.respawnTimer = RULES.fallRespawnFrames;
   }

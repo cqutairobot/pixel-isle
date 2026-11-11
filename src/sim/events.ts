@@ -4,7 +4,8 @@ import type { BlockKind, EnemyKind, ItemKind } from './level';
 export type DefeatCause = 'stomp' | 'bump' | 'sun' | 'starfish' | 'coconut' | 'charge';
 
 /** 回到安全地面的原因 */
-export type RespawnCause = 'pit' | 'water' | 'death';
+/** 回到安全的地方的原因；conch：护身海螺的泡泡托回来（画面不淡出） */
+export type RespawnCause = 'pit' | 'water' | 'death' | 'conch';
 
 /** sim 每一步产生的事件，表现层（粒子、震动、音效、UI）据此做反馈。坐标为游戏像素。 */
 export type SimEvent =
@@ -15,7 +16,8 @@ export type SimEvent =
   | { type: 'wallBump'; x: number; y: number; dir: number }
   | { type: 'drop'; x: number; y: number }
   | { type: 'leaveGround'; x: number; y: number }
-  | { type: 'fellOut'; x: number; y: number }
+  /** 掉出画面；conch 为 true 时护身海螺会把小满托回去（画面不淡出） */
+  | { type: 'fellOut'; x: number; y: number; conch?: boolean }
   | { type: 'respawn'; x: number; y: number; cause?: RespawnCause }
   | { type: 'cornerCorrect'; dx: number }
   | { type: 'ledgeAssist'; dy: number }
@@ -33,9 +35,20 @@ export type SimEvent =
       facing: number;
     }
   | { type: 'enemyLost'; id: number; kind: EnemyKind; x: number; y: number; water: boolean }
-  | { type: 'hurt'; x: number; y: number; hearts: number; dir: number; spike?: boolean }
+  /** 受伤；blue 为 true 时扣的是椰子水的蓝心（红心不变） */
+  | {
+      type: 'hurt';
+      x: number;
+      y: number;
+      hearts: number;
+      dir: number;
+      spike?: boolean;
+      blue?: boolean;
+    }
+  /** 护身海螺用掉了：一个大泡泡把小满（骑着的话连咩铃）从 (x, y) 托回安全的地方 (toX, toY)（脚底） */
+  | { type: 'conch'; x: number; y: number; toX: number; toY: number }
   | { type: 'death'; x: number; y: number }
-  | { type: 'splash'; x: number; y: number; big: boolean }
+  | { type: 'splash'; x: number; y: number; big: boolean; conch?: boolean }
   // —— 方块与道具 ——
   | {
       type: 'blockHit';
