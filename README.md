@@ -3,7 +3,7 @@
 在浏览器里玩的原创像素风横版平台跳跃游戏。玩法是马里奥式的跑、跳、踩、顶，加上投掷装备、坐骑、冻住敌人滚雪球，以及一段海岛冒险故事。
 
 - 总体计划：[PLAN.md](PLAN.md)
-- 当前进度：**M1 第 1 关「晨钟村 · 晨光沙滩」已通过**（计划见 [docs/levels/1-1.md](docs/levels/1-1.md)）。**M2 第 2 关「椰影小径」做完了，等待试玩确认**：回旋海星、刺海胆、冰喙鸥、椰林、1-2 整关，加上章节地图、关卡开场标题卡、获得道具演出、1-2 和地图的音乐（计划见 [docs/levels/1-2.md](docs/levels/1-2.md)）。**第 3 关「回声崖」的计划写好了，等待确认**：坐骑咩铃、裂岩、崖燕、羊道攀爬、大暑的冰沙摊（计划见 [docs/levels/1-3.md](docs/levels/1-3.md)）。
+- 当前进度：**M1 第 1 关「晨钟村 · 晨光沙滩」已通过**（计划见 [docs/levels/1-1.md](docs/levels/1-1.md)）。**M2 第 2 关「椰影小径」和章节地图已完成**（计划见 [docs/levels/1-2.md](docs/levels/1-2.md)）。**M3 第 3 关「回声崖」的玩法部分（M3-a）做完了，等待试玩**：坐骑咩铃（骑上、二段跳、冲撞、冲撞跳、被撞下来不扣心）、冰晶羊圈、裂岩、崖燕、云海、回声石门、羊道攀爬，1-3 整关和四段过场。大暑的冰沙摊、背包道具、换装、1-3 的音乐和剧情打磨（M3-b）接着做（计划见 [docs/levels/1-3.md](docs/levels/1-3.md)）。
 - 练习场（M0）的计划见 [docs/levels/0-gym.md](docs/levels/0-gym.md)
 
 ![标题画面](docs/art/m1-title.png)
@@ -18,6 +18,17 @@
 
 ![第 2 关总览](docs/levels/img/1-2.png)
 
+| | |
+|---|---|
+| ![1-3 开场：谷雨在结冰的羊圈前哭](docs/art/m3-opening.png) | ![踩碎羊圈顶上的冰晶](docs/art/m3-crystal.png) |
+| ![新伙伴：咩铃](docs/art/m3-newfriend.png) | ![骑着咩铃二段跳上崖坎](docs/art/m3-double.png) |
+| ![矮洞前：裂开的大石头](docs/art/m3-ride.png) | ![冲撞撞碎裂岩](docs/art/m3-charge.png) |
+| ![崖燕从画面边上飞来](docs/art/m3-swallow.png) | ![被冻住的回声石门](docs/art/m3-gate.png) |
+| ![回声洞里敲响回声铃](docs/art/m3-echo.png) | ![羊道竖井和海玻璃 ③ 的裂岩](docs/art/m3-shaft.png) |
+| ![结尾：谷雨的谢意](docs/art/m3-ending.png) | |
+
+![第 3 关总览](docs/levels/img/1-3.png)
+
 ## 在线试玩（不用安装）
 
 **<https://claude.ai/artifact/B14NuTU4u23E5HA1LDHeuB>**
@@ -26,7 +37,7 @@
 - 链接默认只有仓库所有者能打开；想给别人玩，在页面的分享菜单里开启分享。
 - 页面打开后，先用鼠标点一下画面，键盘才能控制。需要电脑键盘或手柄，手机上不能玩。
 - 打开是标题画面：按任意键 → 新游戏（序章 → 第 1 关）。
-- 在链接后面加 `#1-1` 直接进第 1 关，`#1-2` 直接进第 2 关，`#map` 打开章节地图，`#prologue` 看序章，`#gym` 进练习场，`#soundboard` 打开试听板（可以试听音乐和音效）。
+- 在链接后面加 `#1-1` 直接进第 1 关，`#1-2` 直接进第 2 关，`#1-3` 直接进第 3 关，`#map` 打开章节地图，`#prologue` 看序章，`#gym` 进练习场，`#soundboard` 打开试听板（可以试听音乐和音效）。
 - 通关第 1 关以后：结算时选"继续"、标题画面的"继续"都会去章节地图；在地图上用 ← → 沿着路跳到别的关卡，按 K 打开关卡卡片，再按 K 进关，Esc 打开地图菜单。
 
 ## 在 Mac 上本地运行
@@ -49,7 +60,7 @@ npm install
 npm run dev
 ```
 
-浏览器打开终端里显示的地址（默认 <http://localhost:5173>，是标题画面；直接进第 1 关是 <http://localhost:5173/#1-1>，第 2 关是 <http://localhost:5173/#1-2>，章节地图是 <http://localhost:5173/#map>，练习场是 <http://localhost:5173/#gym>）。推荐用 Chrome，Safari 也支持。第一次按任意键后会有声音。
+浏览器打开终端里显示的地址（默认 <http://localhost:5173>，是标题画面；直接进第 1 关是 <http://localhost:5173/#1-1>，第 2 关是 <http://localhost:5173/#1-2>，第 3 关是 <http://localhost:5173/#1-3>，章节地图是 <http://localhost:5173/#map>，练习场是 <http://localhost:5173/#gym>）。推荐用 Chrome，Safari 也支持。第一次按任意键后会有声音。
 
 ## 操作
 
