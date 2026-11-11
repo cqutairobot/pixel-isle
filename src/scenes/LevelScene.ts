@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/engine';
+import type { AmbienceId } from '../audio/music/ambience';
+import { RIDE_VERSIONS } from '../audio/music/scores';
 import { END_STATES } from '../content/cutscenes/endStates';
 import { ADOU_SOLVED } from '../content/dialog/1-1';
 import { ECHO_GAG } from '../content/dialog/1-3';
@@ -22,6 +24,7 @@ import {
   writeSave,
   type SaveData,
 } from '../platform/save';
+import { TILE } from '../sim/constants';
 import type { SimEvent } from '../sim/events';
 import type { Player } from '../sim/player';
 import { BTN, EMPTY_INPUT, type InputFrame } from '../sim/input';
@@ -88,6 +91,12 @@ export class LevelScene extends Phaser.Scene {
   private bg!: IslandBackground | GroveBackground | CliffBackground;
   private mount!: MountView;
   private conchBubble!: ConchBubble;
+  /** 洞（背墙）的范围，按格子：小满走进去时环境声换成回声洞 */
+  private caves: Array<[number, number, number, number]> = [];
+  private inCave = false;
+  private caveTimer = 0;
+  /** 过场把音乐停了（只剩风声）：这时不去换环境声 */
+  private quiet = false;
   private starfishView!: StarfishView;
   private view!: LevelView;
   private ents!: EntityViews;
@@ -270,8 +279,15 @@ export class LevelScene extends Phaser.Scene {
     }
     if (this.ui.transition.covered) void this.ui.transition.reveal(0.7);
     else this.cameras.main.fadeIn(500, ...FADE);
-    audio.music.play(this.level.music ?? 'beach', 1.5);
+    this.caves = this.level.entities.flatMap((e) =>
+      e.type === 'backdrop' && e.kind === 'cave' ? [e.rect] : [],
+    );
+    this.inCave = this.caveAt();
+    this.quiet = false;
+    audio.music.play(this.levelMusic(), 1.5);
     audio.music.ambience(this.ambience());
+    const ride = RIDE_VERSIONS[this.level.music ?? ''];
+    if (ride) audio.music.prefetch(ride);
     const c = this.content;
     const startKey = c.startKey;
     if (!cp && data.intro !== false && c.intro && c.cutscenes[c.intro]) {
@@ -287,10 +303,49 @@ export class LevelScene extends Phaser.Scene {
     else if (!cp) this.time.delayedCall(600, () => this.showTitleCard());
   }
 
-  /** 环境声：椰林里是风吹树叶加远处的海浪，海崖上是风，其他地方是海浪 */
-  private ambience(): 'sea' | 'grove' | 'wind' {
+  /** 环境声：椰林里是风吹树叶加远处的海浪，海崖上是大风和崖燕，洞里是滴水，其他地方是海浪 */
+  private ambience(): AmbienceId {
+    if (this.inCave) return 'cave';
     const theme = this.level.themes[0]?.theme;
-    return theme === 'grove' ? 'grove' : theme === 'cliff' ? 'wind' : 'sea';
+    return theme === 'grove' ? 'grove' : theme === 'cliff' ? 'cliff' : 'sea';
+  }
+
+  /** 小满（脚下那一格）在不在洞里 */
+  private caveAt(): boolean {
+    const b = this.world.player.body;
+    const col = Math.floor(b.centerX / TILE);
+    const row = Math.floor((b.bottom - 1) / TILE);
+    return this.caves.some(([c, r, w, h]) => col >= c && col < c + w && row >= r && row < r + h);
+  }
+
+  /** 走进、走出洞时换环境声；在洞口来回晃不会一直换 */
+  private updateAmbience(dt: number): void {
+    if (!this.caves.length || this.mode !== 'play') return;
+    if (this.caveAt() === this.inCave) {
+      this.caveTimer = 0;
+      return;
+    }
+    this.caveTimer += dt;
+    if (this.caveTimer < 0.35) return;
+    this.caveTimer = 0;
+    this.inCave = !this.inCave;
+    if (!this.quiet) audio.music.ambience(this.ambience());
+  }
+
+  /** 本关的曲子；骑着咩铃时换成骑乘版（如果这首有） */
+  private levelMusic(): string {
+    const id = this.level.music ?? 'beach';
+    return (this.world.player.ride && RIDE_VERSIONS[id]) || id;
+  }
+
+  /** 骑上、下来咩铃：正在放本关曲子的话，换成另一个版本，从同一个位置接着放 */
+  private syncRideMusic(): void {
+    const base = this.level.music ?? 'beach';
+    const ride = RIDE_VERSIONS[base];
+    const now = audio.music.wanted;
+    if (!ride || (now !== base && now !== ride)) return;
+    const next = this.levelMusic();
+    if (next !== now) audio.music.swap(next);
   }
 
   /** 关卡开场标题卡：章节名、关卡名、本关找到过的海玻璃 */
@@ -562,7 +617,7 @@ export class LevelScene extends Phaser.Scene {
         const companion = COMPANIONS[eid];
         const info = companion ?? EQUIPMENT[eid]!;
         const cam = this.cameras.main;
-        audio.music.jingle('itemGet', 'duck');
+        audio.music.jingle(eid === 'mieling' ? 'newFriend' : 'itemGet', 'duck');
         const m = new ItemGet(this.ui.host, {
           name: info.name,
           head: companion?.head,
@@ -694,10 +749,12 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  /** 过场里换音乐：音乐停下时只留风声 */
+  /** 过场里换音乐：音乐停下时只留风声；换回本关的曲子时，骑着就是骑乘版 */
   private playMusic(id: string | null): void {
-    audio.music.play(id, id ? 1.2 : 1.5);
-    if (this.mode === 'play') audio.music.ambience(id ? this.ambience() : 'wind');
+    const mid = id && id === (this.level.music ?? 'beach') ? this.levelMusic() : id;
+    audio.music.play(mid, mid ? 1.2 : 1.5);
+    this.quiet = !mid;
+    if (this.mode === 'play') audio.music.ambience(mid ? this.ambience() : 'wind');
   }
 
   private dialogSounds(): DirectorHost['dialog'] {
@@ -790,15 +847,18 @@ export class LevelScene extends Phaser.Scene {
         // —— 坐骑咩铃 ——
         case 'mount':
           hud.setMount(true);
+          this.syncRideMusic();
           this.ui.keyHint.done('ride');
           this.time.delayedCall(250, () => this.hint('ride'));
           break;
         case 'dismount':
           hud.setMount(false);
+          this.syncRideMusic();
           this.ui.keyHint.done('dismount');
           break;
         case 'knockOff':
           hud.setMount(false);
+          this.syncRideMusic();
           this.time.delayedCall(400, () => this.hint('knocked'));
           break;
         case 'goatFlee':
@@ -906,7 +966,7 @@ export class LevelScene extends Phaser.Scene {
           this.hint('conch');
           break;
         case 'sun':
-          audio.music.play(e.on ? 'sun' : (this.level.music ?? 'beach'), e.on ? 0.3 : 0.9);
+          audio.music.play(e.on ? 'sun' : this.levelMusic(), e.on ? 0.3 : 0.9);
           break;
         case 'death':
           audio.music.jingle('death', 'interrupt');
@@ -915,6 +975,7 @@ export class LevelScene extends Phaser.Scene {
           break;
         case 'respawn':
           this.snapPrev();
+          this.syncRideMusic();
           hud.setEquipOut(false);
           this.hero.resetRibbon(w.player.body.centerX, w.player.body.bottom);
           if (e.cause === 'conch') {
@@ -1187,6 +1248,7 @@ export class LevelScene extends Phaser.Scene {
     this.view.updateFronts(dt, fronts);
     this.particles.update(dt, false);
     this.conchBubble.update(dt);
+    this.updateAmbience(dt);
     this.juice.tick(dt, w);
     this.bg.update(dt, cx, cy);
     this.view.update(dt);

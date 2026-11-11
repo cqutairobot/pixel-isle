@@ -69,8 +69,15 @@ describe('渲染', () => {
     });
   }
 
-  it('乐句的长度：过关约 3 秒、倒下约 1.2 秒、检查点约 1 秒、海玻璃约 1.5 秒', () => {
-    const want: Record<string, number> = { clear: 3, death: 1.25, checkpoint: 1, glass: 1.5 };
+  it('乐句的长度：过关约 3 秒、倒下约 1.2 秒、检查点约 1 秒、海玻璃约 1.5 秒、新伙伴约 3 秒、买下约 1 秒', () => {
+    const want: Record<string, number> = {
+      clear: 3,
+      death: 1.25,
+      checkpoint: 1,
+      glass: 1.5,
+      newFriend: 3,
+      buy: 1,
+    };
     for (const [id, sec] of Object.entries(want)) {
       const s = JINGLES[id]!;
       expect(s.bars * 16 * stepSeconds(s), id).toBeCloseTo(sec, 1);
@@ -81,8 +88,19 @@ describe('渲染', () => {
     }
   });
 
-  it('环境声（海浪、风）循环无缝', () => {
-    for (const id of ['sea', 'wind'] as const) {
+  it('1-3 曲的骑乘版和普通版一样长、一样快，切换时从同一个位置接上', () => {
+    const a = SONGS.cliff!;
+    const b = SONGS.cliffRide!;
+    expect(b.bpm).toBe(a.bpm);
+    expect(b.bars).toBe(a.bars);
+    expect(scoreLength(b, SR)).toBe(scoreLength(a, SR));
+    // 骑乘版是普通版再加两条音轨（羊铃、手鼓）
+    expect(b.tracks.slice(0, a.tracks.length)).toEqual(a.tracks);
+    expect(b.tracks.slice(a.tracks.length).map((t) => t.inst)).toEqual(['bell', 'wood']);
+  });
+
+  it('环境声（海浪、风、椰林、海崖、回声洞）循环无缝', () => {
+    for (const id of ['sea', 'wind', 'grove', 'cliff', 'cave'] as const) {
       const r = renderAmbience(id, SR, 4);
       expect(r.left.length).toBe(4 * SR);
       expect(peakOf(r)).toBeLessThanOrEqual(0.61);

@@ -6,6 +6,8 @@ import { renderScore, type Rendered, type Score } from './sequencer';
 const SLICE_MS = 4;
 
 const rendered = new Map<string, Promise<Rendered>>();
+/** 环境声在缓存里的前缀 */
+export const AMB = 'amb:';
 
 /**
  * 在后台渲染一首曲子（不需要 AudioContext，所以在玩家按下第一个键、音频解锁之前就可以开始）。
@@ -15,8 +17,9 @@ export function renderInBackground(id: string): Promise<Rendered> {
   const hit = rendered.get(id);
   if (hit) return hit;
   const p = new Promise<Rendered>((resolve) => {
-    if (id === 'sea' || id === 'wind') {
-      setTimeout(() => resolve(renderAmbience(id)), 0);
+    // 环境声用 amb: 前缀，和同名的曲子（例如 1-2 的曲子 grove、1-3 的曲子 cliff）分开缓存
+    if (id.startsWith(AMB)) {
+      setTimeout(() => resolve(renderAmbience(id.slice(AMB.length) as AmbienceId)), 0);
       return;
     }
     const score: Score | undefined = SONGS[id] ?? JINGLES[id];
@@ -66,6 +69,8 @@ export class MusicPlayer {
   private resumeAt = new Map<string, number>();
   private resumeTimer = 0;
   private interrupted = false;
+  /** 被"倒下"乐句打断的曲子：乐句放完从原处接着放（期间骑上、下来咩铃会换成另一个版本） */
+  private resumeId: string | null = null;
   private readonly duck: GainNode;
   private readonly filter: BiquadFilterNode;
   private readonly ambBus: GainNode;
@@ -157,6 +162,7 @@ export class MusicPlayer {
   play(id: string | null, fade = 0.8): void {
     this.want = id;
     this.interrupted = false;
+    this.resumeId = null;
     clearTimeout(this.resumeTimer);
     if (this.current && this.current.id === id) return;
     if (this.current) {
@@ -203,16 +209,20 @@ export class MusicPlayer {
       this.current = null;
     }
     this.interrupted = true;
+    this.resumeId = null;
     clearTimeout(this.resumeTimer);
     if (mode === 'interrupt' && cur) {
-      const id2 = cur.id;
+      this.resumeId = cur.id;
       this.resumeTimer = window.setTimeout(
         () => {
           this.interrupted = false;
-          if (this.want === id2 && !this.current) {
-            const b = this.cache.get(id2);
-            if (b) this.current = this.start(id2, b, this.resumeAt.get(id2) ?? 0, 1.2, this.duck);
-          }
+          const rid = this.resumeId;
+          this.resumeId = null;
+          if (!rid || this.want !== rid || this.current) return;
+          void this.load(rid).then((b) => {
+            if (this.want !== rid || this.current || this.interrupted) return;
+            this.current = this.start(rid, b, this.resumeAt.get(rid) ?? 0, 1.2, this.duck);
+          });
         },
         (len + 0.4) * 1000,
       );
@@ -228,9 +238,43 @@ export class MusicPlayer {
       this.amb = null;
     }
     if (!id) return;
-    void this.load(id).then((buf) => {
+    void this.load(AMB + id).then((buf) => {
       if (this.wantAmb !== id || this.amb) return;
       this.amb = this.start(id, buf, Math.random() * buf.duration, fade, this.ambBus);
+    });
+  }
+
+  /**
+   * 换到同一首曲子的另一个版本（例如 1-3 曲和它的骑乘版）：两个版本一样长，
+   * 新的从旧的正播到的位置接着放，短短交叉淡化，听起来就像多了（或少了）几件乐器。
+   */
+  swap(id: string, fade = 0.3): void {
+    if (this.interrupted) {
+      // "倒下"乐句还在放：放完以后从同一个位置接上另一个版本；过关乐句以后不再放音乐
+      const rid = this.resumeId;
+      if (rid && rid !== id) {
+        this.resumeAt.set(id, this.resumeAt.get(rid) ?? 0);
+        this.resumeId = id;
+        this.want = id;
+        void this.load(id);
+      }
+      return;
+    }
+    const cur = this.current;
+    if (!cur || cur.id === id) {
+      this.play(id, fade);
+      return;
+    }
+    this.want = id;
+    void this.load(id).then((buf) => {
+      const now = this.current;
+      if (this.want !== id || this.interrupted || now?.id === id) return;
+      const offset = now ? this.position(now) : (this.resumeAt.get(id) ?? 0);
+      if (now) {
+        this.resumeAt.set(now.id, offset);
+        this.stopPlaying(now, fade);
+      }
+      this.current = this.start(id, buf, offset, fade, this.duck);
     });
   }
 

@@ -74,6 +74,9 @@ test('试听板列出全部音效槽位', async ({ page }) => {
   await page.goto('/?scene=soundboard');
   await expect(page.getByText('试听板')).toBeVisible();
   await expect(page.locator('button', { hasText: '候选 1' })).toHaveCount(SFX_IDS.length);
+  // 按钮点得到（没有被铺满画面的游戏层挡住）：点一个环境声，再点一个音效候选
+  await page.getByRole('button', { name: '≈ 环境声：海崖' }).click();
+  await page.locator('button', { hasText: '候选 2' }).first().click();
   expect(errors).toEqual([]);
 });
 

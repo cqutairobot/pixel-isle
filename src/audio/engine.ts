@@ -1,5 +1,5 @@
 import type { AmbienceId } from './music/ambience';
-import { MusicPlayer, renderInBackground } from './music/player';
+import { AMB, MusicPlayer, renderInBackground } from './music/player';
 import { saveSettings, settings } from '../platform/settings';
 import { DEFAULT_CHOICES, SFX, SFX_IDS, type SfxId } from './sfx';
 import { normalize, ZZFX_SAMPLE_RATE, zzfxSamples } from './zzfx';
@@ -51,12 +51,24 @@ export class MusicControl {
 
   ambience(id: AmbienceId | null): void {
     this.wantAmb = id;
-    if (id && !this.player) void renderInBackground(id);
+    if (id && !this.player) void renderInBackground(AMB + id);
     this.player?.ambience(id);
+  }
+
+  /** 换到同一首曲子的另一个版本，从同一个位置接着放（1-3 骑上、下来咩铃时） */
+  swap(id: string, fade?: number): void {
+    this.want = id;
+    if (!this.player) void renderInBackground(id);
+    this.player?.swap(id, fade);
   }
 
   jingle(id: string, mode: 'duck' | 'interrupt' | 'end'): void {
     this.player?.jingle(id, mode);
+  }
+
+  /** 现在想放的曲子（可能还在渲染，或者被乐句打断着） */
+  get wanted(): string | null {
+    return this.want;
   }
 
   setTalking(on: boolean): void {

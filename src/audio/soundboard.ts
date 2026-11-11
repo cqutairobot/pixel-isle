@@ -1,4 +1,5 @@
 import { audio } from './engine';
+import type { AmbienceId } from './music/ambience';
 import { JINGLES, SONGS } from './music/scores';
 import { SFX, SFX_IDS, type SfxId } from './sfx';
 import '../ui/dom/ui.css';
@@ -8,6 +9,10 @@ import '../ui/dom/ui.css';
  * 打开方式：#soundboard
  */
 export function mountSoundboard(): void {
+  // 试听板不启动游戏：铺满画面的 #game 是 position:fixed，留着会挡住下面所有按钮的点击；
+  // 加载时的小铃铛也不会有人来收起，一起拿掉
+  document.getElementById('game')?.remove();
+  document.getElementById('loader')?.remove();
   document.body.style.overflow = 'auto';
   const root = document.createElement('div');
   root.id = 'ui-root';
@@ -59,17 +64,35 @@ export function mountSoundboard(): void {
     };
     music.appendChild(b);
   }
-  for (const id of ['sea', 'wind'] as const) {
+  // 环境声一次只放一种：再按一下正在放的那个就停
+  const AMBIENCE: Array<[AmbienceId, string]> = [
+    ['sea', '海浪'],
+    ['wind', '风'],
+    ['grove', '椰林'],
+    ['cliff', '海崖'],
+    ['cave', '回声洞'],
+  ];
+  let ambOn: AmbienceId | null = null;
+  const ambButtons: Array<[AmbienceId, HTMLButtonElement]> = [];
+  const paintAmb = () => {
+    for (const [id, b] of ambButtons)
+      b.style.cssText =
+        btnStyle +
+        (id === ambOn ? ';background:#5b6abf;color:#fff' : ';background:#2b2f4f;color:#dfe7f2');
+  };
+  for (const [id, label] of AMBIENCE) {
     const b = document.createElement('button');
-    b.textContent = id === 'sea' ? '≈ 环境声：海浪' : '≈ 环境声：风';
-    b.style.cssText = btnStyle + ';background:#2b2f4f;color:#dfe7f2';
+    b.textContent = `≈ 环境声：${label}`;
     b.onclick = () => {
       audio.unlock();
-      audio.music.ambience(b.dataset.on ? null : id);
-      b.dataset.on = b.dataset.on ? '' : '1';
+      ambOn = ambOn === id ? null : id;
+      audio.music.ambience(ambOn);
+      paintAmb();
     };
+    ambButtons.push([id, b]);
     music.appendChild(b);
   }
+  paintAmb();
   paintSongs(null);
   root.appendChild(music);
 

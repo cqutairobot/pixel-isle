@@ -208,7 +208,7 @@ export const level13: LevelDef = {
   themes: [{ from: 0, theme: 'cliff' }],
   // 回回一直跟着；海星从 1-2 起就带着
   flags: ['huihui', 'starfish'],
-  music: 'beach',
+  music: 'cliff',
   legend: {
     '=': { tile: T_ONEWAY, material: MAT_BOARDWALK },
     '~': { tile: T_WATER, material: MAT_CLOUD },

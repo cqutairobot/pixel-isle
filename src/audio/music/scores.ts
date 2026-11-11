@@ -489,6 +489,255 @@ JINGLES.unlock = {
   ],
 };
 
+// —— 1-3「回声崖」：A 多利亚调式，132 BPM，32 小节（A A B A'） ——
+// 奔跑一样的八分音符低音；方波主旋律带一个晚 3/16 拍、音量减半的"回声声部"（附点八分的回声）；
+// B 段换成长音，像风吹过山谷。骑乘版在同一份谱子上加羊铃和手鼓，两版一样长，骑上、下来时无缝切换。
+
+const KCH: Record<string, { bass: string; stab: string; pad: string }> = {
+  Am: { bass: 'A2:2 A3:2 A2:2 A3:2 E3:2 A3:2 E3:2 G3:2', stab: 'A4+C5+E5', pad: 'A3+C4+E4' },
+  D: { bass: 'D3:2 D4:2 D3:2 D4:2 A2:2 D3:2 F#3:2 A3:2', stab: 'F#4+A4+D5', pad: 'D3+F#3+A3' },
+  G: { bass: 'G2:2 G3:2 G2:2 G3:2 D3:2 G3:2 B2:2 D3:2', stab: 'G4+B4+D5', pad: 'G3+B3+D4' },
+  C: { bass: 'C3:2 C4:2 C3:2 C4:2 G2:2 C3:2 E3:2 G3:2', stab: 'G4+C5+E5', pad: 'C4+E4+G4' },
+  Em: { bass: 'E2:2 E3:2 E2:2 E3:2 B2:2 E3:2 G3:2 B3:2', stab: 'G4+B4+E5', pad: 'E3+G3+B3' },
+  E7: { bass: 'E2:2 E3:2 E2:2 E3:2 G#2:2 B2:2 D3:2 E3:2', stab: 'G#4+B4+D5', pad: 'E3+G#3+D4' },
+};
+const K_A = ['Am', 'D', 'Am', 'G', 'Am', 'D', 'C', 'Em'];
+const K_A2 = ['Am', 'D', 'Am', 'G', 'Am', 'D', 'C', 'Am'];
+const K_B = ['C', 'G', 'D', 'Am', 'C', 'G', 'D', 'E7'];
+const K_PROG = [...K_A, ...K_A2, ...K_B, ...K_A2];
+const KMEL_A = [
+  'A4:2 C5:2 E5:2 A5:4 G5:2 E5:4',
+  'F#5:3 E5:3 D5:2 A4:4 r:4',
+  'E5:2 A5:2 B5:2 C6:4 B5:2 A5:4',
+  'G5:3 F#5:3 E5:2 D5:4 B4:4',
+  'A4:2 C5:2 E5:2 A5:4 C6:2 B5:4',
+  'A5:3 F#5:3 D5:2 E5:4 F#5:4',
+  'G5:3 E5:3 C5:2 D5:3 E5:3 G5:2',
+  'E5:6 r:2 E5:2 F#5:2 G5:2 r:2',
+];
+const KMEL_A2 = [...KMEL_A.slice(0, 7), 'A5:8 r:4 E5:2 G5:2'];
+const KMEL_B = [
+  'E6:8 D6:4 C6:4',
+  'D6:8 B5:8',
+  'A5:8 F#5:4 A5:4',
+  'C6:12 B5:4',
+  'G5:8 C6:4 E6:4',
+  'D6:8 G5:8',
+  'F#5:8 A5:4 D6:4',
+  'B5:8 G#5:4 E5:4',
+];
+const KMEL_A3 = [
+  ...KMEL_A.slice(0, 6),
+  'G5:2 E5:2 C5:2 E5:2 G5:2 C6:2 B5:2 G5:2',
+  'A5:6 r:2 A4:2 B4:2 C5:2 E5:2',
+];
+/** A 段的鼓点（跑起来）和 B 段的鼓点（放慢，留出风声） */
+const kA = (pat: string) => bars(16, pat);
+
+export const CLIFF: Score = {
+  id: 'cliff',
+  title: '1-3「回声崖」',
+  bpm: 132,
+  bars: 32,
+  loop: true,
+  gain: 0.82,
+  tracks: [
+    {
+      inst: 'pulse25',
+      vol: 0.36,
+      pan: 0.1,
+      echo: 0.5,
+      notes: [...KMEL_A, ...KMEL_A2, ...KMEL_B, ...KMEL_A3],
+      gate: 0.85,
+    },
+    { inst: 'tri', vol: 0.5, notes: K_PROG.map((c) => KCH[c]!.bass), gate: 0.7 },
+    {
+      inst: 'pulse12',
+      vol: 0.09,
+      pan: -0.3,
+      notes: [
+        ...[...K_A, ...K_A2].map((c) => `r:2 ${KCH[c]!.stab}:2 `.repeat(4).trim()),
+        ...bars(8, 'r:16'),
+        ...K_A2.map((c) => `r:2 ${KCH[c]!.stab}:2 `.repeat(4).trim()),
+      ],
+      gate: 0.4,
+    },
+    {
+      inst: 'pad',
+      vol: 0.15,
+      pan: -0.1,
+      notes: [...bars(16, 'r:16'), ...K_B.map((c) => `${KCH[c]!.pad}:16`), ...bars(8, 'r:16')],
+    },
+    {
+      inst: 'kick',
+      vol: 0.42,
+      notes: [...kA('k:4 k:4 k:4 k:4'), ...bars(8, 'k:8 k:8'), ...bars(8, 'k:4 k:4 k:4 k:4')],
+    },
+    {
+      inst: 'snare',
+      vol: 0.16,
+      pan: 0.05,
+      notes: [...kA('r:4 s:4 r:4 s:4'), ...bars(8, 'r:16'), ...bars(8, 'r:4 s:4 r:4 s:4')],
+    },
+    {
+      inst: 'hat',
+      vol: 0.08,
+      pan: 0.25,
+      notes: [
+        ...kA('h:2 h:2 h:2 h:2 h:2 h:2 h:2 h:2'),
+        ...bars(8, 'r:2 h:2 r:2 h:2 r:2 h:2 r:2 h:2'),
+        ...bars(8, 'h:2 h:2 h:2 h:2 h:2 h:2 h:2 h:2'),
+      ],
+    },
+  ],
+};
+
+/** 骑乘版：同一份谱子，加上咩铃脖子上的羊铃（反拍）和一面手鼓 */
+export const CLIFF_RIDE: Score = {
+  ...CLIFF,
+  id: 'cliffRide',
+  title: '1-3「回声崖」（骑乘版）',
+  tracks: [
+    ...CLIFF.tracks,
+    {
+      inst: 'bell',
+      vol: 0.1,
+      pan: 0.35,
+      notes: [
+        ...kA('r:2 A6:1 r:1 r:2 E6:1 r:1 r:2 A6:1 r:1 r:2 E6:1 r:1'),
+        ...bars(8, 'r:4 A6:1 r:3 r:4 E6:1 r:3'),
+        ...bars(8, 'r:2 A6:1 r:1 r:2 E6:1 r:1 r:2 A6:1 r:1 r:2 E6:1 r:1'),
+      ],
+    },
+    {
+      inst: 'wood',
+      vol: 0.28,
+      pan: -0.25,
+      notes: [
+        ...kA('w:3 w:3 w:2 w:3 w:3 w:2'),
+        ...bars(8, 'w:4 w:4 w:8'),
+        ...bars(8, 'w:3 w:3 w:2 w:3 w:3 w:2'),
+      ],
+    },
+  ],
+};
+
+// —— 商店曲「冰沙摊」：C 大调，96 BPM，16 小节 ——
+// 钢鼓唱主旋律、马林巴按波萨诺瓦的节奏弹和弦，低音走"根音——五音"的切分，懒洋洋的
+
+const SCH: Record<string, { bass: string; comp: string }> = {
+  Cmaj7: { bass: 'C3:6 G2:2 C3:6 G2:2', comp: 'E4+G4+B4' },
+  Am7: { bass: 'A2:6 E2:2 A2:6 E2:2', comp: 'E4+G4+C5' },
+  Dm7: { bass: 'D3:6 A2:2 D3:6 A2:2', comp: 'F4+A4+C5' },
+  G7: { bass: 'G2:6 D3:2 G2:6 D3:2', comp: 'F4+B4+D5' },
+  Em7: { bass: 'E3:6 B2:2 E3:6 B2:2', comp: 'D4+G4+B4' },
+  A7: { bass: 'A2:6 E3:2 A2:6 E3:2', comp: 'C#4+G4+B4' },
+  Fmaj7: { bass: 'F2:6 C3:2 F2:6 C3:2', comp: 'E4+A4+C5' },
+  Fm6: { bass: 'F2:6 C3:2 F2:6 C3:2', comp: 'D4+Ab4+C5' },
+  C6: { bass: 'C3:6 G2:2 C3:6 G2:2', comp: 'E4+A4+C5' },
+};
+const S_PROG = [
+  'Cmaj7',
+  'Am7',
+  'Dm7',
+  'G7',
+  'Em7',
+  'A7',
+  'Dm7',
+  'G7',
+  'Fmaj7',
+  'Fm6',
+  'Em7',
+  'A7',
+  'Dm7',
+  'G7',
+  'C6',
+  'G7',
+];
+const S_MEL = [
+  'E5:4 G5:2 B5:4 A5:2 G5:4',
+  'E5:6 C5:2 r:4 E5:2 D5:2',
+  'F5:4 A5:2 C6:4 B5:2 A5:4',
+  'G5:8 r:4 D5:2 E5:2',
+  'G5:4 B5:2 D6:4 C6:2 B5:4',
+  'C#6:6 A5:2 r:4 G5:2 A5:2',
+  'F5:4 A5:2 D6:4 C6:2 A5:4',
+  'B5:8 r:4 G5:2 A5:2',
+  'A5:4 C6:2 E6:4 D6:2 C6:4',
+  'Ab5:6 F5:2 r:4 D5:2 F5:2',
+  'G5:4 E5:2 B5:4 A5:2 G5:4',
+  'E5:6 C#5:2 r:4 E5:2 G5:2',
+  'F5:4 D5:2 A5:4 G5:2 F5:4',
+  'D5:6 E5:2 F5:4 G5:2 B4:2',
+  'C5:8 r:4 E5:2 G5:2',
+  'B4:4 D5:2 F5:4 E5:2 D5:4',
+];
+
+export const SHOP: Score = {
+  id: 'shop',
+  title: '商店曲「冰沙摊」',
+  bpm: 96,
+  bars: 16,
+  loop: true,
+  gain: 0.85,
+  tracks: [
+    { inst: 'steel', vol: 0.5, pan: 0.15, echo: 0.2, notes: S_MEL },
+    {
+      inst: 'marimba',
+      vol: 0.26,
+      pan: -0.25,
+      notes: S_PROG.map((c) => {
+        const x = SCH[c]!.comp;
+        return `${x}:2 r:1 ${x}:2 r:1 ${x}:2 r:2 ${x}:2 r:1 ${x}:2 r:1`;
+      }),
+    },
+    { inst: 'tri', vol: 0.45, notes: S_PROG.map((c) => SCH[c]!.bass), gate: 0.75 },
+    { inst: 'wood', vol: 0.16, pan: 0.3, notes: bars(16, 'w:3 w:3 w:4 w:3 w:3') },
+    { inst: 'shaker', vol: 0.05, pan: -0.3, notes: bars(16, 'x x x x x x x x x x x x x x x x') },
+    { inst: 'kick', vol: 0.24, notes: bars(16, 'k:6 k:2 k:8') },
+  ],
+};
+
+// 第 3 关加的乐句（docs/levels/1-3.md §8）
+JINGLES.newFriend = {
+  id: 'newFriend',
+  title: '乐句：新伙伴',
+  bpm: 120,
+  bars: 24 / 16,
+  loop: false,
+  gain: 0.95,
+  tracks: [
+    { inst: 'steel', vol: 0.55, echo: 0.22, notes: 'G5:2 C6:2 E6:2 G6:4 E6:2 G6:8 r:4' },
+    {
+      inst: 'marimba',
+      vol: 0.32,
+      pan: -0.25,
+      notes: 'C5:1 E5:1 G5:1 C6:1 E5:1 G5:1 C6:1 E6:1 r:16',
+    },
+    { inst: 'pulse25', vol: 0.13, pan: 0.3, notes: 'r:6 C6:2 E6:4 D6:2 E6:6 r:4' },
+    { inst: 'bell', vol: 0.4, pan: 0.2, echo: 0.3, notes: 'r:8 C7+E7:12 r:4' },
+    // 结尾一声羊铃
+    { inst: 'bell', vol: 0.3, pan: -0.3, notes: 'r:18 A6:1 r:1 A6:1 r:3' },
+    { inst: 'tri', vol: 0.45, notes: 'C3:4 G2:4 C3:16' },
+    { inst: 'pad', vol: 0.18, notes: 'C4+E4+G4:24' },
+  ],
+};
+JINGLES.buy = {
+  id: 'buy',
+  title: '乐句：买下',
+  bpm: 120,
+  bars: 0.5,
+  loop: false,
+  gain: 0.8,
+  tracks: [
+    { inst: 'bell', vol: 0.42, echo: 0.25, notes: 'C6:1 E6:1 G6:1 C7:5' },
+    { inst: 'marimba', vol: 0.28, pan: -0.2, notes: 'r:3 C5+E5+G5:5' },
+  ],
+};
+
+/** 有骑乘版的曲子：骑上咩铃时换成骑乘版，下来时换回来（两版一样长） */
+export const RIDE_VERSIONS: Readonly<Record<string, string>> = { cliff: 'cliffRide' };
+
 export const SONGS: Record<string, Score> = {
   title: TITLE,
   beach: BEACH,
@@ -496,4 +745,7 @@ export const SONGS: Record<string, Score> = {
   night: NIGHT,
   grove: GROVE,
   map: MAP,
+  cliff: CLIFF,
+  cliffRide: CLIFF_RIDE,
+  shop: SHOP,
 };

@@ -201,6 +201,8 @@ export class MapScene extends Phaser.Scene {
     });
     audio.music.play('map', 1.2);
     audio.music.ambience('sea');
+    // 冰沙摊开张以后，先把商店曲渲染好
+    if (shopOpen(this.save)) audio.music.prefetch('shop');
     if (this.ui.transition.covered) void this.ui.transition.reveal(0.7);
     else this.cameras.main.fadeIn(400, 26, 28, 44);
     if (reveal.length) {
@@ -364,12 +366,17 @@ export class MapScene extends Phaser.Scene {
     setFlag(this.save, 'shopVisited');
     writeSave(this.save);
     this.devices.releaseAll();
+    // 进店换成商店曲，出来接着放地图曲（从刚才的位置）
+    audio.music.play('shop', 0.6);
     this.ui.openModal(
       new ShopScreen(this.ui.host, {
         save: this.save,
         persist: () => writeSave(this.save),
         first,
-        onClose: () => this.hero.setFrame(this.heroFrame('idle_0')),
+        onClose: () => {
+          audio.music.play('map', 0.8);
+          this.hero.setFrame(this.heroFrame('idle_0'));
+        },
       }),
     );
   }
