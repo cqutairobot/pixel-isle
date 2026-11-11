@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { colorInt } from '../art/palette';
+import { colorInt, type ColorName } from '../art/palette';
 
 interface Pt {
   x: number;
@@ -18,13 +18,18 @@ export class Ribbon {
   private tails: Pt[][] = [];
   private lengths = [3, 2.6];
   private time = 0;
-  private readonly colors = [colorInt('red1'), colorInt('red2')];
+  private colors = [colorInt('red1'), colorInt('red2')];
 
   constructor(scene: Phaser.Scene) {
     this.gfx = scene.add.graphics();
     for (let t = 0; t < 2; t++) {
       this.tails.push(Array.from({ length: 5 }, () => ({ x: 0, y: 0, px: 0, py: 0 })));
     }
+  }
+
+  /** 飘带换色（换装时跟着帽带）：暗、亮 */
+  setColors(dark: ColorName, light: ColorName): void {
+    this.colors = [colorInt(dark), colorInt(light)];
   }
 
   /** 把所有节点放到锚点处（传送后调用，避免飘带被拉长） */

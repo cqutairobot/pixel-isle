@@ -1,4 +1,5 @@
 import { Paint, type ImageSheet } from './paint';
+import { drawConch } from './shop';
 import type { RGBAImage } from './sprite';
 import { grid, type PixelGrid } from './sprite';
 
@@ -32,16 +33,18 @@ function paintGrid(g: PixelGrid, keys: Record<string, Parameters<Paint['set']>[2
 }
 
 const heartKeys = { o: 'night', r: 'red2', R: 'red1', w: 'white' } as const;
+/** 椰子水的蓝心 */
+const blueKeys = { o: 'night', r: 'sky', R: 'sea', w: 'white' } as const;
 const heartFull = paintGrid(HEART, heartKeys);
 const heartEmpty = paintGrid(HEART, { o: 'night', r: 'slate', R: 'slate', w: 'stone' });
 /** 碎裂：心从中间裂开，两半往两边错开 */
-function heartBreak(gap: number): RGBAImage {
+function heartBreak(gap: number, keys: Record<string, string> = heartKeys): RGBAImage {
   const p = new Paint(11 + gap * 2, 8);
   HEART.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       const ch = row[x]!;
       if (ch === '.') continue;
-      const c = (heartKeys as Record<string, Parameters<Paint['set']>[2]>)[ch] ?? null;
+      const c = (keys as Record<string, Parameters<Paint['set']>[2]>)[ch] ?? null;
       const left = x + (y % 2) <= 4;
       p.set(left ? x : x + gap * 2, y + (left ? 0 : gap > 1 ? 1 : 0), c);
     }
@@ -194,6 +197,11 @@ const frames: Record<string, RGBAImage> = {
   heart_break_0: heartBreak(1),
   heart_break_1: heartBreak(2),
   heart_break_2: heartBreak(3),
+  heart_blue: paintGrid(HEART, blueKeys),
+  heart_blue_break_0: heartBreak(1, blueKeys),
+  heart_blue_break_1: heartBreak(2, blueKeys),
+  heart_blue_break_2: heartBreak(3, blueKeys),
+  conch: drawConch(11),
   shell: paintGrid(SHELL_ICON, { o: 'night', c: 'cream', p: 'skin1', w: 'white', d: 'blush' }),
   glass_slot: glassSlot(),
   prompt: prompt(),

@@ -510,6 +510,9 @@ const daishu: Character = {
     normal: { eyes: 'open', mouth: 'smile' },
     sweat: { eyes: 'narrow', mouth: 'grin', sweat: true },
     laugh: { eyes: 'happy', mouth: 'open' },
+    // 冰沙摊：讲冷笑话时挤一只眼；没人笑时豆豆眼、一字嘴、冒一滴汗
+    joke: { eyes: 'wink', mouth: 'grin', brows: 'raised' },
+    awkward: { eyes: 'wide', mouth: 'line', sweat: true },
   },
 };
 

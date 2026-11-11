@@ -6,8 +6,10 @@ import { equipSheet } from './equipment';
 import { fxSheet } from './fx';
 import { fx2Sheet } from './fx2';
 import { goatSheet } from './goat';
+import { shopSheet } from './shop';
 import { groveSheet } from './grove';
 import { heroSheet } from './hero';
+import { outfitSheets } from './heroOutfits';
 import { itemSheet } from './items';
 import { mapSheet } from './mapArt';
 import { npcSheet } from './npcs';
@@ -19,7 +21,14 @@ import { waterSheet } from './water';
 import { rasterize, type RGBAImage, type Sheet } from './sprite';
 
 /** 所有用字符网格绘制的精灵表 */
-export const allSheets: Sheet[] = [heroSheet, propSheet, fxSheet, blockSheet, itemSheet];
+export const allSheets: Sheet[] = [
+  heroSheet,
+  ...outfitSheets,
+  propSheet,
+  fxSheet,
+  blockSheet,
+  itemSheet,
+];
 
 /** 所有用 Paint 画出来的精灵表（帧尺寸可以不同） */
 export const allImageSheets: ImageSheet[] = [
@@ -35,6 +44,7 @@ export const allImageSheets: ImageSheet[] = [
   mapSheet,
   goatSheet,
   cliffSheet,
+  shopSheet,
 ];
 
 /** 全部帧：名字形如 hero/run_3 */
