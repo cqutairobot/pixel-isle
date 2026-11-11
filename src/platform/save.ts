@@ -1,6 +1,7 @@
 /**
- * 存档 v2（PLAN §5.9，docs/levels/1-2.md §6.4）：localStorage 自动存档，只有一个存档位，
- * 带版本号和迁移。v2 比 v1 多了拥有的装备和章节地图的状态。
+ * 存档 v3（PLAN §5.9，docs/levels/1-3.md §6.4）：localStorage 自动存档，只有一个存档位，
+ * 带版本号和迁移。v2 比 v1 多了拥有的装备和章节地图的状态；v3 再多了背包（椰子水、护身海螺）、
+ * 买下的布料和当前的服装（大暑的冰沙摊）。
  * 纯逻辑，存储对象可以替换（测试里用内存存储）。
  */
 
@@ -24,8 +25,23 @@ export interface MapState {
   chatter: string[];
 }
 
+/** 背包里的道具（各最多带 BAG_MAX 个，进关时自动使用） */
+export interface Bag {
+  /** 椰子水：进关时多一颗临时的蓝心 */
+  coconut: number;
+  /** 护身海螺：下一次掉坑、掉进冷水或云海时把小满托回去，不扣心 */
+  conch: number;
+}
+
+export type BagItem = keyof Bag;
+export const BAG_ITEMS: readonly BagItem[] = ['coconut', 'conch'];
+/** 每种背包道具最多带几个 */
+export const BAG_MAX = 1;
+/** 原来的衣服 */
+export const DEFAULT_OUTFIT = 'default';
+
 export interface SaveData {
-  version: 2;
+  version: 3;
   levels: Record<string, LevelRecord>;
   /** 贝壳总数（货币） */
   shells: number;
@@ -34,6 +50,11 @@ export interface SaveData {
   /** 拥有的装备（例如 starfish），以后每一关都带着 */
   equipment: string[];
   map: MapState;
+  bag: Bag;
+  /** 买下的布料（服装编号，不含原色） */
+  outfits: string[];
+  /** 现在穿的服装 */
+  outfit: string;
 }
 
 export interface KV {
@@ -43,19 +64,22 @@ export interface KV {
 }
 
 export const SAVE_KEY = 'pixel-isle.save';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /** v1 时代拿到装备是记成剧情标记的；迁移时挪进 equipment */
 const V1_EQUIPMENT_FLAGS = ['starfish'];
 
 export function emptySave(): SaveData {
   return {
-    version: 2,
+    version: 3,
     levels: {},
     shells: 0,
     flags: [],
     equipment: [],
     map: { node: '1-1', opened: [], chatter: [] },
+    bag: { coconut: 0, conch: 0 },
+    outfits: [],
+    outfit: DEFAULT_OUTFIT,
   };
 }
 
@@ -67,9 +91,10 @@ const strings = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
 
 /**
- * 把读到的任意数据整理成 v2 存档；看不懂的字段丢掉，缺的补上默认值。
+ * 把读到的任意数据整理成 v3 存档；看不懂的字段丢掉，缺的补上默认值。
  * v1 → v2：剧情标记里的装备（starfish）挪进 equipment；地图从第一个节点开始，
  * 还没播放过的路径解锁动画会在第一次打开地图时补上。
+ * v2 → v3：背包是空的，没买过布料，穿原来的衣服。
  */
 export function migrate(raw: unknown): SaveData {
   const out = emptySave();
@@ -78,9 +103,22 @@ export function migrate(raw: unknown): SaveData {
   if (typeof r.shells === 'number' && Number.isFinite(r.shells) && r.shells >= 0)
     out.shells = Math.floor(r.shells);
   const flags = strings(r.flags);
-  const v2 = r.version === 2;
+  // v2 以后装备、地图状态单独存；v1 的装备记在剧情标记里
+  const v2 = r.version === 2 || r.version === 3;
   out.flags = v2 ? flags : flags.filter((f) => !V1_EQUIPMENT_FLAGS.includes(f));
   out.equipment = v2 ? strings(r.equipment) : flags.filter((f) => V1_EQUIPMENT_FLAGS.includes(f));
+  if (r.version === 3) {
+    if (r.bag && typeof r.bag === 'object') {
+      const b = r.bag as Record<string, unknown>;
+      for (const k of BAG_ITEMS) {
+        const n = b[k];
+        if (typeof n === 'number' && Number.isFinite(n))
+          out.bag[k] = Math.max(0, Math.min(BAG_MAX, Math.floor(n)));
+      }
+    }
+    out.outfits = [...new Set(strings(r.outfits).filter((o) => o !== DEFAULT_OUTFIT))];
+    if (typeof r.outfit === 'string' && out.outfits.includes(r.outfit)) out.outfit = r.outfit;
+  }
   if (v2 && r.map && typeof r.map === 'object') {
     const m = r.map as Record<string, unknown>;
     if (typeof m.node === 'string' && m.node) out.map.node = m.node;
